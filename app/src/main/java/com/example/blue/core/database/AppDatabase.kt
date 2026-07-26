@@ -14,6 +14,7 @@ import com.example.blue.data.local.entity.AccountCategoryEntity
 import com.example.blue.data.local.entity.AccountEntryEntity
 import com.example.blue.data.local.entity.DiaryEntity
 import com.example.blue.data.local.entity.DiaryImageEntity
+import com.example.blue.data.local.entity.DiaryMoodEntity
 import com.example.blue.data.local.entity.SleepRecordEntity
 import com.example.blue.data.local.entity.TimeEventEntity
 import com.example.blue.data.local.entity.TimeProfileEntity
@@ -22,13 +23,14 @@ import com.example.blue.data.local.entity.TimeProfileEntity
     entities = [
         DiaryEntity::class,
         DiaryImageEntity::class,
+        DiaryMoodEntity::class,
         AccountEntryEntity::class,
         AccountCategoryEntity::class,
         SleepRecordEntity::class,
         TimeProfileEntity::class,
         TimeEventEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -113,11 +115,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS diary_moods (
+                        diaryId TEXT NOT NULL,
+                        mood INTEGER NOT NULL,
+                        PRIMARY KEY(diaryId, mood),
+                        FOREIGN KEY(diaryId) REFERENCES diaries(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_diary_moods_mood ON diary_moods(mood)",
+                )
+                // Copy every legacy single mood into the new relation. The old
+                // column stays in place so older backups remain compatible.
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO diary_moods(diaryId, mood)
+                    SELECT id, mood FROM diaries
+                    WHERE mood BETWEEN 1 AND 6
+                    """.trimIndent(),
+                )
+            }
+        }
+
         val MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
+            MIGRATION_5_6,
         )
     }
 }

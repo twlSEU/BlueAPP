@@ -11,6 +11,8 @@ import com.example.blue.data.local.entity.AccountCategoryEntity
 import com.example.blue.data.local.entity.AccountEntryEntity
 import com.example.blue.data.local.entity.DiaryEntity
 import com.example.blue.data.local.entity.DiaryImageEntity
+import com.example.blue.data.local.entity.DiaryMoodEntity
+import com.example.blue.data.local.entity.DiaryMoodIds
 import com.example.blue.data.local.entity.SleepRecordEntity
 import com.example.blue.data.local.entity.SleepSource
 import com.example.blue.data.local.entity.TimeEventEntity
@@ -58,6 +60,7 @@ class BackupManager(
         val availableImages = diaryDao.getAllImages().filter { image ->
             imageStorage.fileFor(image.localPath).isFile
         }
+        val moods = diaryDao.getAllMoods()
         val accounts = accountDao.getAllEntries()
         val categories = accountDao.getAllCategories()
         val sleeps = sleepRecordDao.getAllRecords()
@@ -83,7 +86,7 @@ class BackupManager(
         context.contentResolver.openOutputStream(uri)?.use { output ->
             ZipOutputStream(output.buffered()).use { zip ->
                 writeText(zip, "manifest.json", manifest.toString())
-                writeText(zip, "diaries.json", diariesJson(diaries, availableImages).toString())
+                writeText(zip, "diaries.json", diariesJson(diaries, availableImages, moods).toString())
                 writeText(zip, "accounts.json", JSONArray().also { result ->
                     accounts.forEach { result.put(accountJson(it)) }
                 }.toString())
@@ -195,6 +198,8 @@ class BackupManager(
                         diaryDao.upsertDiary(item.diary)
                         diaryDao.deleteImages(item.diary.id)
                         if (item.images.isNotEmpty()) diaryDao.upsertImages(item.images)
+                        diaryDao.deleteMoods(item.diary.id)
+                        if (item.moods.isNotEmpty()) diaryDao.upsertMoods(item.moods)
                     }
                     if (mode == RestoreMode.REPLACE) {
                         sleeps.forEach { sleepRecordDao.upsertRecord(it) }
@@ -262,8 +267,10 @@ class BackupManager(
     private fun diariesJson(
         diaries: List<DiaryEntity>,
         images: List<DiaryImageEntity>,
+        moods: List<DiaryMoodEntity>,
     ): JSONArray {
         val byDiary = images.groupBy { it.diaryId }
+        val moodsByDiary = moods.groupBy { it.diaryId }
         return JSONArray().also { result ->
             diaries.forEach { diary ->
                 result.put(JSONObject().apply {
@@ -272,6 +279,15 @@ class BackupManager(
                     put("time", diary.diaryTime.toString())
                     put("content", diary.content)
                     put("mood", diary.mood ?: JSONObject.NULL)
+                    put("moods", JSONArray().also { moodArray ->
+                        moodsByDiary[diary.id]
+                            .orEmpty()
+                            .map(DiaryMoodEntity::mood)
+                            .filter(DiaryMoodIds::isValid)
+                            .distinct()
+                            .sorted()
+                            .forEach(moodArray::put)
+                    })
                     put("createdAt", diary.createdAt)
                     put("updatedAt", diary.updatedAt)
                     put("images", JSONArray().also { imageArray ->
@@ -298,6 +314,19 @@ class BackupManager(
         for (index in 0 until array.length()) {
             val json = array.getJSONObject(index)
             val diaryId = json.getString("id")
+            val legacyMood = json.optInt("mood", 0).takeIf { it in LEGACY_MOOD_RANGE }
+            val moodArray = json.optJSONArray("moods")
+            val importedMoodValues = if (moodArray == null) {
+                listOfNotNull(legacyMood)
+            } else {
+                buildList {
+                    for (moodIndex in 0 until moodArray.length()) {
+                        moodArray.optInt(moodIndex, 0)
+                            .takeIf(DiaryMoodIds::isValid)
+                            ?.let(::add)
+                    }
+                }.distinct()
+            }
             val importedImages = mutableListOf<DiaryImageEntity>()
             val imageArray = json.optJSONArray("images") ?: JSONArray()
             for (imageIndex in 0 until imageArray.length()) {
@@ -332,9 +361,12 @@ class BackupManager(
                     content = json.optString("content"),
                     createdAt = json.optLong("createdAt"),
                     updatedAt = json.optLong("updatedAt"),
-                    mood = json.optInt("mood", 0).takeIf { it in VALID_MOOD_RANGE },
+                    mood = importedMoodValues.minOrNull(),
                 ),
                 images = importedImages,
+                moods = importedMoodValues.map { mood ->
+                    DiaryMoodEntity(diaryId = diaryId, mood = mood)
+                },
             )
         }
         return result
@@ -597,6 +629,7 @@ class BackupManager(
     private data class ImportedDiary(
         val diary: DiaryEntity,
         val images: List<DiaryImageEntity>,
+        val moods: List<DiaryMoodEntity>,
     )
 
     private data class ParsedManifest(
@@ -610,11 +643,11 @@ class BackupManager(
     )
 
     private companion object {
-        const val FORMAT_VERSION = 4
+        const val FORMAT_VERSION = 5
         const val MIN_SUPPORTED_FORMAT_VERSION = 1
         const val SLEEP_BACKUP_VERSION = 2
         const val TIME_BACKUP_VERSION = 3
-        val VALID_MOOD_RANGE = 1..6
+        val LEGACY_MOOD_RANGE = 1..6
         const val MAX_JSON_BYTES = 64L * 1024 * 1024
         const val MAX_IMAGE_BYTES = 100L * 1024 * 1024
         const val MAX_BACKUP_BYTES = 2L * 1024 * 1024 * 1024

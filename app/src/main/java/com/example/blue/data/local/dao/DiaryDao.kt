@@ -6,6 +6,7 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import com.example.blue.data.local.entity.DiaryEntity
 import com.example.blue.data.local.entity.DiaryImageEntity
+import com.example.blue.data.local.entity.DiaryMoodEntity
 import com.example.blue.data.local.entity.DiaryWithImages
 import com.example.blue.data.repository.DiaryContentBatchItem
 import com.example.blue.data.repository.DiaryMonthAggregate
@@ -147,13 +148,13 @@ interface DiaryDao {
 
     @Query(
         """
-        SELECT mood, COUNT(*) AS count
-        FROM diaries
-        WHERE diaryDate >= :startDate
-          AND diaryDate < :endDateExclusive
-          AND mood IS NOT NULL
-        GROUP BY mood
-        ORDER BY count DESC, mood
+        SELECT diary_moods.mood AS mood, COUNT(*) AS count
+        FROM diary_moods
+        INNER JOIN diaries ON diaries.id = diary_moods.diaryId
+        WHERE diaries.diaryDate >= :startDate
+          AND diaries.diaryDate < :endDateExclusive
+        GROUP BY diary_moods.mood
+        ORDER BY count DESC, diary_moods.mood
         """,
     )
     fun observeMoodCounts(
@@ -164,15 +165,15 @@ interface DiaryDao {
     @Query(
         """
         SELECT
-            CAST(SUBSTR(diaryDate, 6, 2) AS INTEGER) AS month,
-            mood,
+            CAST(SUBSTR(diaries.diaryDate, 6, 2) AS INTEGER) AS month,
+            diary_moods.mood AS mood,
             COUNT(*) AS count
-        FROM diaries
-        WHERE diaryDate >= :startDate
-          AND diaryDate < :endDateExclusive
-          AND mood IS NOT NULL
-        GROUP BY SUBSTR(diaryDate, 6, 2), mood
-        ORDER BY month, mood
+        FROM diary_moods
+        INNER JOIN diaries ON diaries.id = diary_moods.diaryId
+        WHERE diaries.diaryDate >= :startDate
+          AND diaries.diaryDate < :endDateExclusive
+        GROUP BY SUBSTR(diaries.diaryDate, 6, 2), diary_moods.mood
+        ORDER BY month, diary_moods.mood
         """,
     )
     fun observeMonthlyMoodCounts(
@@ -215,11 +216,17 @@ interface DiaryDao {
     @Upsert
     suspend fun upsertImages(images: List<DiaryImageEntity>)
 
+    @Upsert
+    suspend fun upsertMoods(moods: List<DiaryMoodEntity>)
+
     @Query("SELECT * FROM diary_images WHERE diaryId = :diaryId ORDER BY sortOrder")
     suspend fun getImages(diaryId: String): List<DiaryImageEntity>
 
     @Query("DELETE FROM diary_images WHERE diaryId = :diaryId")
     suspend fun deleteImages(diaryId: String)
+
+    @Query("DELETE FROM diary_moods WHERE diaryId = :diaryId")
+    suspend fun deleteMoods(diaryId: String)
 
     @Query("DELETE FROM diaries WHERE id = :id")
     suspend fun deleteDiary(id: String): Int
@@ -229,6 +236,9 @@ interface DiaryDao {
 
     @Query("SELECT * FROM diary_images ORDER BY diaryId, sortOrder")
     suspend fun getAllImages(): List<DiaryImageEntity>
+
+    @Query("SELECT * FROM diary_moods ORDER BY diaryId, mood")
+    suspend fun getAllMoods(): List<DiaryMoodEntity>
 
     @Query("DELETE FROM diaries")
     suspend fun clearAllDiaries()

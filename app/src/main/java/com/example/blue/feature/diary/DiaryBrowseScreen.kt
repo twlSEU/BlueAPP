@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -83,6 +84,7 @@ import coil.size.Precision
 import com.example.blue.R
 import com.example.blue.data.local.DiaryImageStorage
 import com.example.blue.data.local.entity.DiaryWithImages
+import com.example.blue.data.local.entity.selectedMoodIds
 import com.example.blue.data.repository.DiaryBrowseFilter
 import com.example.blue.data.repository.DiaryBrowseOrder
 import com.example.blue.data.repository.DiaryRepository
@@ -819,13 +821,20 @@ private fun DiaryBrowseCard(
                         color = BrowseMuted,
                     )
                 }
-                entry.mood?.let { mood ->
-                    Surface(shape = CircleShape, color = BrowseBlue.copy(alpha = 0.10f)) {
+                val selectedMoods = diary.selectedMoodIds
+                if (selectedMoods.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.widthIn(max = 156.dp),
+                        shape = CircleShape,
+                        color = BrowseBlue.copy(alpha = 0.10f),
+                    ) {
                         Text(
-                            diaryMoodLabel(mood),
+                            diaryMoodLabels(selectedMoods),
                             modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium,
                             color = BrowseBlue,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

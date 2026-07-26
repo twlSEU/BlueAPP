@@ -699,12 +699,16 @@ private fun DiarySummaryError(message: String, onRetry: () -> Unit) {
 }
 
 private fun diaryMoodScore(mood: Int): Double = when (mood) {
-    2 -> 1.0
-    1 -> 1.4
-    6 -> 1.8
-    3 -> 3.0
-    4 -> 4.2
-    5 -> 5.0
+    2 -> 1.0 // 伤心
+    1 -> 1.4 // 低落
+    9 -> 1.6 // 焦虑
+    6 -> 1.8 // 愤怒
+    8 -> 1.8 // 不适
+    7 -> 2.0 // 疲惫
+    10 -> 2.2 // 无聊
+    3 -> 3.0 // 平静
+    4 -> 4.2 // 愉快
+    5 -> 5.0 // 恋爱
     else -> 3.0
 }
 

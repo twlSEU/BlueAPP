@@ -6,7 +6,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -19,7 +18,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +37,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -118,7 +115,9 @@ import com.example.blue.R
 import com.example.blue.data.local.DiaryImageStorage
 import com.example.blue.data.local.entity.DiaryEntity
 import com.example.blue.data.local.entity.DiaryImageEntity
+import com.example.blue.data.local.entity.DiaryMoodIds
 import com.example.blue.data.local.entity.DiaryWithImages
+import com.example.blue.data.local.entity.selectedMoodIds
 import com.example.blue.data.repository.DiaryRepository
 import com.example.blue.data.repository.DiaryMoodAggregate
 import com.example.blue.data.repository.DiaryPeriodSummary
@@ -159,22 +158,37 @@ private val DiaryYearSurface = Color(0xFFFEFFFF)
 private val DiaryYearFogBlue = Color(0xFF86A5BA)
 private val DiaryYearText = Color(0xFF2D4555)
 private val DiaryYearMuted = Color(0xFF748895)
+private val moodIdSetSaver = listSaver<Set<Int>, Int>(
+    save = { selected -> selected.toList() },
+    restore = { saved -> saved.toSet() },
+)
 private data class MoodOption(
     val value: Int,
     val label: String,
     val imageRes: Int,
 )
 private val moodOptions = listOf(
-    MoodOption(2, "伤心", R.drawable.mood_shangxin),
-    MoodOption(1, "低落", R.drawable.mood_diluo),
-    MoodOption(6, "愤怒", R.drawable.mood_fennv),
-    MoodOption(3, "平静", R.drawable.mood_pingjing),
-    MoodOption(4, "愉快", R.drawable.mood_yukuai),
-    MoodOption(5, "开心", R.drawable.mood_kaixin),
+    MoodOption(DiaryMoodIds.SAD, "伤心", R.drawable.mood_shangxin),
+    MoodOption(DiaryMoodIds.LOW, "低落", R.drawable.mood_diluo),
+    MoodOption(DiaryMoodIds.ANGRY, "愤怒", R.drawable.mood_fennv),
+    MoodOption(DiaryMoodIds.CALM, "平静", R.drawable.mood_pingjing),
+    MoodOption(DiaryMoodIds.PLEASANT, "愉快", R.drawable.mood_yukuai),
+    MoodOption(DiaryMoodIds.TIRED, "疲惫", R.drawable.mood_pibei),
+    MoodOption(DiaryMoodIds.UNWELL, "不适", R.drawable.mood_bushi),
+    MoodOption(DiaryMoodIds.ANXIOUS, "焦虑", R.drawable.mood_jiaolv),
+    MoodOption(DiaryMoodIds.BORED, "无聊", R.drawable.mood_wuliao),
+    MoodOption(DiaryMoodIds.ROMANTIC, "恋爱", R.drawable.mood_lianai),
 )
 
 internal fun diaryMoodLabel(value: Int): String =
     moodOptions.firstOrNull { it.value == value }?.label ?: "未记录心情"
+
+internal fun diaryMoodLabels(values: Collection<Int>): String {
+    val labels = moodOptions
+        .filter { option -> option.value in values }
+        .map(MoodOption::label)
+    return labels.takeIf { it.isNotEmpty() }?.joinToString("、") ?: "未记录心情"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -349,7 +363,9 @@ fun DiaryEditorScreen(
     }
     var timeText by rememberSaveable { mutableStateOf(LocalTime.now().format(timeFormatter)) }
     var content by rememberSaveable { mutableStateOf("") }
-    var mood by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedMoods by rememberSaveable(stateSaver = moodIdSetSaver) {
+        mutableStateOf<Set<Int>>(emptySet())
+    }
     var photos by rememberSaveable(stateSaver = photoReferenceListSaver) {
         mutableStateOf<List<PhotoReference>>(emptyList())
     }
@@ -374,7 +390,7 @@ fun DiaryEditorScreen(
             dateText = item.diary.diaryDate.format(dateFormatter)
             timeText = item.diary.diaryTime.format(timeFormatter)
             content = item.diary.content
-            mood = item.diary.mood
+            selectedMoods = item.selectedMoodIds
             photos = item.images.sortedBy { it.sortOrder }.map { PhotoReference.Existing(it.localPath) }
             initialized = true
         }
@@ -422,7 +438,7 @@ fun DiaryEditorScreen(
                             content = content.trim(),
                             createdAt = loadedDiary?.diary?.createdAt ?: System.currentTimeMillis(),
                             updatedAt = System.currentTimeMillis(),
-                            mood = mood,
+                            mood = selectedMoods.minOrNull(),
                         ),
                         images = resolvedPaths.mapIndexed { index, path ->
                             DiaryImageEntity(
@@ -433,6 +449,7 @@ fun DiaryEditorScreen(
                                 createdAt = System.currentTimeMillis(),
                             )
                         },
+                        moods = selectedMoods,
                     )
                     for (path in oldPaths - resolvedPaths.toSet()) {
                         imageStorage.delete(path)
@@ -490,7 +507,7 @@ fun DiaryEditorScreen(
                     )
                 }
                 item {
-                    MoodSelector(selected = mood, onSelected = { mood = it })
+                    MoodSelector(selected = selectedMoods, onSelected = { selectedMoods = it })
                 }
                 item {
                     DiaryTextEditor(value = content, onValueChange = { content = it.take(DiaryContentCharacterLimit) })
@@ -757,13 +774,6 @@ private fun DiarySectionCard(
 
 @Composable
 private fun DiaryTextEditor(value: String, onValueChange: (String) -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val inputBorderColor by animateColorAsState(
-        targetValue = if (isFocused) Color(0xFFBFD3F2) else Color(0xFFE8EDF2),
-        animationSpec = tween(durationMillis = 160),
-        label = "Diary text editor border",
-    )
     DiarySectionCard {
         Column(
             modifier = Modifier.padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 20.dp),
@@ -784,18 +794,14 @@ private fun DiaryTextEditor(value: String, onValueChange: (String) -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 284.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFFFCFCFE))
-                    .border(1.dp, inputBorderColor, RoundedCornerShape(18.dp))
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                    .heightIn(min = 284.dp),
             ) {
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 236.dp)
+                        .heightIn(min = 254.dp)
                         .padding(bottom = 30.dp),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = DiaryEditorBody,
@@ -803,7 +809,6 @@ private fun DiaryTextEditor(value: String, onValueChange: (String) -> Unit) {
                         lineHeight = 26.sp,
                     ),
                     cursorBrush = SolidColor(DiaryEditorBlue),
-                    interactionSource = interactionSource,
                     decorationBox = { innerTextField ->
                         Box(modifier = Modifier.fillMaxWidth()) {
                             if (value.isEmpty()) {
@@ -823,9 +828,8 @@ private fun DiaryTextEditor(value: String, onValueChange: (String) -> Unit) {
                 Text(
                     text = "${value.length} / $DiaryContentCharacterLimit",
                     modifier = Modifier.align(Alignment.BottomEnd),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF98A6B2),
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DiaryEditorMuted.copy(alpha = 0.68f),
                 )
             }
         }
@@ -1065,11 +1069,11 @@ private fun DiaryEditorScreenPreview() {
                     )
                 }
                 item {
-                    MoodSelector(selected = 4, onSelected = {})
+                    MoodSelector(selected = setOf(DiaryMoodIds.PLEASANT), onSelected = {})
                 }
                 item {
                     DiaryTextEditor(
-                        value = "今天的晚风很舒服，想把这一刻记录下来。",
+                        value = "今天的晚风很舒服，晚霞很浪漫，我想把这一刻记录下来。",
                         onValueChange = {},
                     )
                 }
@@ -1267,10 +1271,12 @@ private fun DiaryRow(diary: DiaryWithImages, onClick: () -> Unit) {
                     Text("$wordCount 字", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8997A1))
                     Text("·", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB4BEC5))
                     Text(
-                        entry.mood?.let(::diaryMoodLabel) ?: "未记录心情",
+                        diaryMoodLabels(diary.selectedMoodIds),
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF8997A1),
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 HorizontalDivider(thickness = 0.6.dp, color = Color(0xFFE1E7EB))
@@ -1461,7 +1467,7 @@ private fun DiaryDaySection(
 }
 
 @Composable
-private fun MoodSelector(selected: Int?, onSelected: (Int) -> Unit) {
+private fun MoodSelector(selected: Set<Int>, onSelected: (Set<Int>) -> Unit) {
     DiarySectionCard {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -1475,34 +1481,47 @@ private fun MoodSelector(selected: Int?, onSelected: (Int) -> Unit) {
                     color = DiaryEditorTitle,
                 )
                 Spacer(Modifier.weight(1f))
-                Icon(
-                    painter = painterResource(R.drawable.ic_mood_smile),
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = Color(0xFF93AAB9),
+                Text(
+                    text = if (selected.isEmpty()) "可多选" else "已选 ${selected.size} 项",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = DiaryEditorMuted,
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                moodOptions.forEach { option ->
-                    val isSelected = selected == option.value
-                    Card(
-                        onClick = { onSelected(option.value) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) DiaryEditorLightBlue else Color.Transparent,
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 0.dp),
+            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                moodOptions.chunked(5).forEach { rowOptions ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        Image(
-                            painter = painterResource(option.imageRes),
-                            contentDescription = "${option.label}心情",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(0.75f)
-                                .padding(2.dp),
-                            contentScale = ContentScale.Fit,
-                        )
+                        rowOptions.forEach { option ->
+                            val isSelected = option.value in selected
+                            Card(
+                                onClick = {
+                                    onSelected(
+                                        if (isSelected) selected - option.value else selected + option.value,
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) DiaryEditorLightBlue else Color.Transparent,
+                                ),
+                                border = if (isSelected) BorderStroke(1.dp, DiaryEditorBlue.copy(alpha = 0.45f)) else null,
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 0.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 3.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Image(
+                                        painter = painterResource(option.imageRes),
+                                        contentDescription = "${option.label}心情",
+                                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                                        contentScale = ContentScale.Fit,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

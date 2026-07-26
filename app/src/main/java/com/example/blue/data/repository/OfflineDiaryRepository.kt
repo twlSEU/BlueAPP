@@ -5,6 +5,8 @@ import com.example.blue.core.database.AppDatabase
 import com.example.blue.data.local.dao.DiaryDao
 import com.example.blue.data.local.entity.DiaryEntity
 import com.example.blue.data.local.entity.DiaryImageEntity
+import com.example.blue.data.local.entity.DiaryMoodEntity
+import com.example.blue.data.local.entity.DiaryMoodIds
 import com.example.blue.data.local.entity.DiaryWithImages
 import java.time.LocalDate
 import java.time.YearMonth
@@ -110,6 +112,7 @@ class OfflineDiaryRepository(
     override suspend fun saveDiary(
         diary: DiaryEntity,
         images: List<DiaryImageEntity>,
+        moods: Set<Int>,
     ) {
         require(diary.content.isNotBlank() || images.isNotEmpty()) {
             "日记正文和照片不能同时为空"
@@ -117,12 +120,25 @@ class OfflineDiaryRepository(
         require(images.all { it.diaryId == diary.id }) {
             "照片必须属于当前日记"
         }
+        require(moods.all(DiaryMoodIds::isValid)) {
+            "日记包含无效的心情"
+        }
 
         database.withTransaction {
-            diaryDao.upsertDiary(diary)
+            // Keep one value in the legacy column for compatibility; the child
+            // table below is the source of truth for all selected moods.
+            diaryDao.upsertDiary(diary.copy(mood = moods.minOrNull()))
             diaryDao.deleteImages(diary.id)
             if (images.isNotEmpty()) {
                 diaryDao.upsertImages(images.sortedBy(DiaryImageEntity::sortOrder))
+            }
+            diaryDao.deleteMoods(diary.id)
+            if (moods.isNotEmpty()) {
+                diaryDao.upsertMoods(
+                    moods.sorted().map { mood ->
+                        DiaryMoodEntity(diaryId = diary.id, mood = mood)
+                    },
+                )
             }
         }
     }

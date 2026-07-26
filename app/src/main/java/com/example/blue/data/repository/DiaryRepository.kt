@@ -92,6 +92,7 @@ interface DiaryRepository {
     suspend fun saveDiary(
         diary: DiaryEntity,
         images: List<DiaryImageEntity>,
+        moods: Set<Int>,
     )
 
     suspend fun deleteDiary(id: String): List<String>
