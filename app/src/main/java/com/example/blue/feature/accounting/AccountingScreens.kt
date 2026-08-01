@@ -32,9 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -89,6 +87,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.blue.R
 import com.example.blue.core.util.AmountUtils
@@ -96,6 +96,7 @@ import com.example.blue.data.local.entity.AccountCategoryEntity
 import com.example.blue.data.local.entity.AccountEntryEntity
 import com.example.blue.data.local.entity.AccountEntryWithCategory
 import com.example.blue.data.repository.AccountRepository
+import com.example.blue.data.repository.AccountMonthlyAggregate
 import com.example.blue.data.repository.AccountPeriodSummary
 import com.example.blue.feature.common.AppBackButton
 import com.example.blue.feature.common.AppAnimatedFloatingAction
@@ -443,15 +444,17 @@ fun AccountEditorScreen(
     var saving by remember { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
+    var showOtherCategories by rememberSaveable { mutableStateOf(false) }
     val type = AccountType.valueOf(typeName)
     val categories by remember(repository, type) {
         repository.observeCategories(type)
     }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val categoryListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val primaryCategories = categories.take(3)
+    val remainingCategories = categories.drop(3)
 
-    LaunchedEffect(entryId, initialDate, type) {
-        categoryListState.scrollToItem(0)
+    LaunchedEffect(type) {
+        showOtherCategories = false
     }
 
     LaunchedEffect(entryId) {
@@ -560,24 +563,14 @@ fun AccountEditorScreen(
                 }
             }
             item(key = "category") {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AccountEditorSectionTitle("分类")
-                    LazyRow(
-                        state = categoryListState,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(categories, key = { it.id }) { category ->
-                            AccountCategoryChip(
-                                category = category,
-                                selected = category.id == categoryId,
-                                onClick = { categoryId = category.id },
-                            )
-                        }
-                        item(key = "more-categories") {
-                            AccountMoreCategoryChip(onClick = { onManageCategories(type) })
-                        }
-                    }
-                }
+                AccountCategorySelectionCard(
+                    categories = primaryCategories,
+                    selectedCategoryId = categoryId,
+                    hasMoreCategories = remainingCategories.isNotEmpty(),
+                    onCategorySelected = { categoryId = it.id },
+                    onExpand = { showOtherCategories = true },
+                    onManageCategories = { onManageCategories(type) },
+                )
             }
             item(key = "note") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -625,6 +618,17 @@ fun AccountEditorScreen(
                 time = selectedTime.format(accountTimeFormatter)
                 showTimePicker = false
             },
+        )
+    }
+    if (showOtherCategories) {
+        AccountCategoryPickerDialog(
+            categories = remainingCategories,
+            selectedCategoryId = categoryId,
+            onCategorySelected = { category ->
+                categoryId = category.id
+                showOtherCategories = false
+            },
+            onDismiss = { showOtherCategories = false },
         )
     }
 }
@@ -1536,13 +1540,82 @@ private fun AccountTypeOption(
 }
 
 @Composable
+private fun AccountCategorySelectionCard(
+    categories: List<AccountCategoryEntity>,
+    selectedCategoryId: String,
+    hasMoreCategories: Boolean,
+    onCategorySelected: (AccountCategoryEntity) -> Unit,
+    onExpand: () -> Unit,
+    onManageCategories: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = AccountingSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 12.dp, bottom = 16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AccountEditorSectionTitle("分类")
+                Spacer(Modifier.weight(1f))
+                TextButton(
+                    onClick = onManageCategories,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_grid),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = AccountingAccent,
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        "更多",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = AccountingAccent,
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                categories.forEach { category ->
+                    AccountCategoryChip(
+                        category = category,
+                        selected = category.id == selectedCategoryId,
+                        onClick = { onCategorySelected(category) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat((3 - categories.size).coerceAtLeast(0)) {
+                    Spacer(Modifier.weight(1f))
+                }
+                AccountExpandCategoryChip(
+                    enabled = hasMoreCategories,
+                    onClick = onExpand,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun AccountCategoryChip(
     category: AccountCategoryEntity,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         onClick = onClick,
+        modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(15.dp),
         color = if (selected) AccountingAccentSoft else Color(0xF2FFFFFF),
         border = BorderStroke(
@@ -1551,10 +1624,10 @@ private fun AccountCategoryChip(
         ),
         shadowElevation = if (selected) 1.dp else 0.dp,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_tag),
@@ -1567,31 +1640,149 @@ private fun AccountCategoryChip(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (selected) AccountingAccent else AccountingText,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
 @Composable
-private fun AccountMoreCategoryChip(onClick: () -> Unit) {
+private fun AccountExpandCategoryChip(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(15.dp),
-        color = Color(0xF2FFFFFF),
+        color = if (enabled) AccountingAccentSoft.copy(alpha = 0.65f) else Color(0xFFF4F6F8),
         border = BorderStroke(1.dp, AccountingBorder.copy(alpha = 0.55f)),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_grid),
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = AccountingMuted,
+                painter = painterResource(R.drawable.ic_arrow_down),
+                contentDescription = "展开其他分类",
+                modifier = Modifier.size(18.dp),
+                tint = if (enabled) AccountingAccent else AccountingMuted.copy(alpha = 0.42f),
             )
-            Text("更多", style = MaterialTheme.typography.bodyMedium, color = AccountingText)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "展开",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) AccountingAccent else AccountingMuted.copy(alpha = 0.42f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountCategoryPickerDialog(
+    categories: List<AccountCategoryEntity>,
+    selectedCategoryId: String,
+    onCategorySelected: (AccountCategoryEntity) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = AccountingSurface,
+            shadowElevation = 16.dp,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.86f)),
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape).background(AccountingAccentSoft),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_grid),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = AccountingAccent,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "选择其他分类",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AccountingText,
+                        )
+                        Text(
+                            "选择后将自动返回账目表单",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = AccountingMuted,
+                        )
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("取消", color = AccountingMuted)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(categories, key = { it.id }) { category ->
+                        val selected = category.id == selectedCategoryId
+                        Surface(
+                            onClick = { onCategorySelected(category) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (selected) AccountingAccentSoft else Color(0xFFF7F9FB),
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) {
+                                    AccountingAccent.copy(alpha = 0.36f)
+                                } else {
+                                    AccountingBorder.copy(alpha = 0.7f)
+                                },
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_tag),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selected) AccountingAccent else AccountingMuted,
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    category.name,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (selected) AccountingAccent else AccountingText,
+                                )
+                                if (selected) {
+                                    Text(
+                                        "已选择",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = AccountingAccent,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -2000,6 +2191,327 @@ private fun AccountingMonthScreenPreview() {
         )
     }
 }
+
+@Preview(
+    name = "记账 · 年月列表",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun AccountingYearScreenPreview() {
+    val aggregates = listOf(
+        AccountMonthlyAggregate(7, 850_000L, 326_800L, 32, 18),
+        AccountMonthlyAggregate(6, 850_000L, 298_600L, 29, 16),
+        AccountMonthlyAggregate(5, 920_000L, 412_300L, 36, 21),
+    ).associateBy { it.month }
+
+    BlueTheme(dynamicColor = false) {
+        Scaffold(
+            containerColor = AccountingBackground,
+            topBar = { AccountTopBar(title = "按年月查看", onBack = {}) },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    AccountYearSelector(year = 2026, canMoveForward = false, onYearChange = {})
+                }
+                items(listOf(7, 6, 5, 4), key = { it }) { month ->
+                    val aggregate = aggregates[month]
+                    AccountMonthCard(
+                        month = month,
+                        entryCount = aggregate?.entryCount ?: 0,
+                        summary = AccountSummary(
+                            incomeInCents = aggregate?.incomeInCents ?: 0L,
+                            expenseInCents = aggregate?.expenseInCents ?: 0L,
+                        ),
+                        onClick = {},
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Preview(
+    name = "记账 · 当日账目",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun AccountingDayScreenPreview() {
+    val date = LocalDate.of(2026, 7, 17)
+    val dining = accountingPreviewCategory("餐饮", AccountType.EXPENSE, 0)
+    val transport = accountingPreviewCategory("交通", AccountType.EXPENSE, 1)
+    val entries = listOf(
+        accountingPreviewEntry("午餐", 2_860L, date, LocalTime.of(12, 30), dining, "day-1"),
+        accountingPreviewEntry("地铁", 600L, date, LocalTime.of(8, 20), transport, "day-2"),
+    )
+    val summary = entries.map { it.entry }.toAccountSummary()
+
+    BlueTheme(dynamicColor = false) {
+        Scaffold(
+            containerColor = AccountingBackground,
+            topBar = { AccountTopBar(title = "7月17日", onBack = {}) },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {},
+                    shape = RoundedCornerShape(18.dp),
+                    containerColor = AccountingAccent,
+                    contentColor = Color.White,
+                ) {
+                    Text("+", style = MaterialTheme.typography.headlineSmall)
+                }
+            },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    AccountSummaryCard(
+                        title = "当日汇总",
+                        supportingText = "星期五 · ${entries.size} 笔账目",
+                        summary = summary,
+                    )
+                }
+                items(entries, key = { it.entry.id }) { item ->
+                    AccountEntryCard(item = item, onClick = {}, onDelete = {})
+                }
+            }
+        }
+    }
+}
+
+@Preview(
+    name = "记账 · 新增编辑账目",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun AccountEditorScreenPreview() {
+    var type by remember { mutableStateOf(AccountType.EXPENSE) }
+    val categories = remember(type) { accountingPreviewCategories(type) }
+    var selectedCategoryId by remember(type) { mutableStateOf(categories.first().id) }
+    var amount by remember { mutableStateOf("28.60") }
+    var name by remember { mutableStateOf("午餐") }
+    var note by remember { mutableStateOf("和朋友一起吃饭") }
+    var showOtherCategories by remember { mutableStateOf(false) }
+
+    BlueTheme(dynamicColor = false) {
+        Scaffold(
+            containerColor = AccountingBackground,
+            topBar = { AccountEditorTopBar(title = "新增账目", onBack = {}) },
+            bottomBar = { AccountSaveBar(saving = false, onSave = {}) },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 26.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                item {
+                    AccountTypeSelector(selected = type, onSelected = { type = it })
+                }
+                item {
+                    AccountEditorFormCard {
+                        AccountAmountField(value = amount, onValueChange = { amount = it })
+                        AccountEditorTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            placeholder = "账目名称",
+                            leadingIconRes = R.drawable.ic_tag,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        AppDateTimeSelectorRow(
+                            date = "2026-07-17",
+                            time = "12:30",
+                            onSelectDate = {},
+                            onSelectTime = {},
+                        )
+                    }
+                }
+                item {
+                    AccountCategorySelectionCard(
+                        categories = categories.take(3),
+                        selectedCategoryId = selectedCategoryId,
+                        hasMoreCategories = categories.size > 3,
+                        onCategorySelected = { selectedCategoryId = it.id },
+                        onExpand = { showOtherCategories = true },
+                        onManageCategories = {},
+                    )
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AccountEditorSectionTitle("备注")
+                        OutlinedTextField(
+                            value = note,
+                            onValueChange = { note = it.take(100) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3,
+                            maxLines = 3,
+                            supportingText = {
+                                Text(
+                                    "${note.length}/100",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.End,
+                                )
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = accountEditorTextFieldColors(),
+                        )
+                    }
+                }
+            }
+        }
+        if (showOtherCategories) {
+            AccountCategoryPickerDialog(
+                categories = categories.drop(3),
+                selectedCategoryId = selectedCategoryId,
+                onCategorySelected = {
+                    selectedCategoryId = it.id
+                    showOtherCategories = false
+                },
+                onDismiss = { showOtherCategories = false },
+            )
+        }
+    }
+}
+
+@Preview(
+    name = "记账 · 其他分类弹窗",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun AccountCategoryPickerDialogPreview() {
+    val categories = accountingPreviewCategories(AccountType.EXPENSE).drop(3)
+    BlueTheme(dynamicColor = false) {
+        Box(Modifier.fillMaxSize().background(AccountingBackground))
+        AccountCategoryPickerDialog(
+            categories = categories,
+            selectedCategoryId = categories.first().id,
+            onCategorySelected = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview(
+    name = "记账 · 分类管理",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun CategoryScreenPreview() {
+    val categories = accountingPreviewCategories(AccountType.EXPENSE) +
+        accountingPreviewCategory(
+            name = "宠物",
+            type = AccountType.EXPENSE,
+            index = 10,
+            isDefault = false,
+            isActive = false,
+        )
+
+    BlueTheme(dynamicColor = false) {
+        Scaffold(
+            containerColor = AccountingBackground,
+            topBar = { AccountTopBar(title = "支出分类", onBack = {}) },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    AccountSectionCard {
+                        AccountSectionTitle(title = "新增分类", supportingText = "创建适合自己的记账分类")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AccountTextField(
+                                value = "",
+                                onValueChange = {},
+                                label = "分类名称",
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Button(
+                                onClick = {},
+                                enabled = false,
+                                modifier = Modifier.height(56.dp),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Text("添加")
+                            }
+                        }
+                    }
+                }
+                items(categories, key = { it.id }) { category ->
+                    AccountCategoryCard(category = category, onActiveChange = {})
+                }
+            }
+        }
+    }
+}
+
+private fun accountingPreviewCategories(type: AccountType): List<AccountCategoryEntity> {
+    val names = if (type == AccountType.INCOME) {
+        listOf("工资", "奖金", "兼职", "理财", "报销", "礼金", "其他")
+    } else {
+        listOf("餐饮", "交通", "购物", "居住", "娱乐", "医疗", "学习", "通讯", "人情", "其他")
+    }
+    return names.mapIndexed { index, name -> accountingPreviewCategory(name, type, index) }
+}
+
+private fun accountingPreviewCategory(
+    name: String,
+    type: AccountType,
+    index: Int,
+    isDefault: Boolean = true,
+    isActive: Boolean = true,
+): AccountCategoryEntity = AccountCategoryEntity(
+    id = "preview-${type.name.lowercase()}-$index",
+    name = name,
+    type = type,
+    isDefault = isDefault,
+    isActive = isActive,
+    createdAt = index.toLong(),
+    updatedAt = 0L,
+)
+
+private fun accountingPreviewEntry(
+    name: String,
+    amountInCents: Long,
+    date: LocalDate,
+    time: LocalTime,
+    category: AccountCategoryEntity,
+    id: String,
+): AccountEntryWithCategory = AccountEntryWithCategory(
+    entry = AccountEntryEntity(
+        id = id,
+        entryDate = date,
+        entryTime = time,
+        type = category.type,
+        amountInCents = amountInCents,
+        name = name,
+        categoryId = category.id,
+        note = null,
+        createdAt = 0L,
+        updatedAt = 0L,
+    ),
+    category = category,
+)
 
 internal fun accountingMonthsForYear(
     year: Int,

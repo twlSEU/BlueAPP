@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -55,9 +56,11 @@ import com.example.blue.core.util.AmountUtils
 import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.data.repository.AccountCategoryAggregate
 import com.example.blue.data.repository.AccountMonthlyAggregate
+import com.example.blue.data.repository.AccountPeriodSummary
 import com.example.blue.data.repository.AccountRepository
 import com.example.blue.model.AccountSummary
 import com.example.blue.model.AccountType
+import com.example.blue.ui.theme.BlueTheme
 import java.time.LocalDate
 import java.time.Year
 
@@ -574,6 +577,101 @@ private fun roundedAverage(totalInCents: Long, divisor: Int): Long {
     val quotient = totalInCents / divisor
     val remainder = totalInCents % divisor
     return quotient + if (remainder * 2L >= divisor) 1L else 0L
+}
+
+@Preview(
+    name = "记账 · 年度总结",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 1000,
+)
+@Composable
+private fun AccountingYearSummaryScreenPreview() {
+    val summary = AccountPeriodSummary(
+        incomeInCents = 6_180_000L,
+        expenseInCents = 2_436_800L,
+        entryCount = 186,
+        recordDays = 112,
+        largestExpenseInCents = 368_000L,
+    )
+    val months = (1..7).map { month ->
+        AccountMonthlyAggregate(
+            month = month,
+            incomeInCents = 850_000L + month * 6_000L,
+            expenseInCents = 260_000L + month * 21_000L,
+            entryCount = 20 + month,
+            recordDays = 12 + month,
+        )
+    }
+    val categories = listOf(
+        AccountCategoryAggregate("dining", "餐饮", AccountType.EXPENSE, 728_000L, 68),
+        AccountCategoryAggregate("housing", "居住", AccountType.EXPENSE, 650_000L, 7),
+        AccountCategoryAggregate("shopping", "购物", AccountType.EXPENSE, 438_000L, 24),
+        AccountCategoryAggregate("transport", "交通", AccountType.EXPENSE, 286_000L, 42),
+        AccountCategoryAggregate("salary", "工资", AccountType.INCOME, 5_950_000L, 7),
+        AccountCategoryAggregate("bonus", "奖金", AccountType.INCOME, 230_000L, 2),
+    )
+    val highestExpenseMonth = months.maxByOrNull { it.expenseInCents }
+    val largestExpenseCategory = categories
+        .filter { it.type == AccountType.EXPENSE }
+        .maxByOrNull { it.totalInCents }
+
+    BlueTheme(dynamicColor = false) {
+        Scaffold(
+            containerColor = YearSummaryBackground,
+            topBar = { AccountTopBar(title = "年度总结", onBack = {}) },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    AccountYearSelector(year = 2026, canMoveForward = false, onYearChange = {})
+                }
+                item {
+                    AccountSummaryCard(
+                        title = "全年汇总",
+                        supportingText = "${summary.entryCount} 笔账目 · ${summary.recordDays} 个记账日",
+                        summary = AccountSummary(summary.incomeInCents, summary.expenseInCents),
+                    )
+                }
+                item { MonthlyCashFlowCard(months) }
+                item {
+                    YearHighlightsCard(
+                        highestExpenseMonth = highestExpenseMonth,
+                        largestExpenseCategory = largestExpenseCategory,
+                        largestExpenseInCents = summary.largestExpenseInCents,
+                    )
+                }
+                item {
+                    YearRecordStatsCard(
+                        entryCount = summary.entryCount,
+                        recordDays = summary.recordDays,
+                        monthlyAverageInCents = roundedAverage(summary.expenseInCents, 7),
+                        dailyAverageInCents = roundedAverage(summary.expenseInCents, 213),
+                    )
+                }
+                item {
+                    CategoryShareCard(
+                        title = "支出分类占比",
+                        emptyText = "本年没有支出记录",
+                        categories = categories.filter { it.type == AccountType.EXPENSE },
+                        accent = YearSummaryExpense,
+                    )
+                }
+                item {
+                    CategoryShareCard(
+                        title = "收入分类占比",
+                        emptyText = "本年没有收入记录",
+                        categories = categories.filter { it.type == AccountType.INCOME },
+                        accent = YearSummaryIncome,
+                    )
+                }
+            }
+        }
+    }
 }
 
 private const val MIN_SUPPORTED_YEAR = 1900

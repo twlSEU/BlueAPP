@@ -8,6 +8,13 @@
       </SelectionState>
       <SelectionState runConfigName="岁痕 · 生日已设置 - LifeTracePreview">
         <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2026-08-01T07:09:15.561953200Z">
+          <Target type="DEFAULT_BOOT">
+            <handle>
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=10ADCN33GR001ND" />
+            </handle>
+          </Target>
+        </DropdownSelection>
         <DialogSelection />
       </SelectionState>
     </selectionStates>

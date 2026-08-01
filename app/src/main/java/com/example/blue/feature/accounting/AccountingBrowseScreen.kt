@@ -63,19 +63,23 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.blue.R
 import com.example.blue.core.util.AmountUtils
-import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.data.local.entity.AccountCategoryEntity
+import com.example.blue.data.local.entity.AccountEntryEntity
 import com.example.blue.data.local.entity.AccountEntryWithCategory
 import com.example.blue.data.repository.AccountBrowseSortField
 import com.example.blue.data.repository.AccountRepository
+import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.model.AccountType
+import com.example.blue.ui.theme.BlueTheme
 import java.time.LocalDate
+import java.time.LocalTime
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -1063,6 +1067,132 @@ private fun BrowseErrorCard(
                 colors = ButtonDefaults.buttonColors(containerColor = BrowseExpense),
             ) {
                 Text("重试")
+            }
+        }
+    }
+}
+
+@Preview(
+    name = "记账 · 全部账目",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 1000,
+)
+@Composable
+private fun AccountingBrowseScreenPreview() {
+    val dining = AccountCategoryEntity(
+        id = "preview-dining",
+        name = "餐饮",
+        type = AccountType.EXPENSE,
+        isDefault = true,
+        isActive = true,
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
+    val transport = AccountCategoryEntity(
+        id = "preview-transport",
+        name = "交通",
+        type = AccountType.EXPENSE,
+        isDefault = true,
+        isActive = true,
+        createdAt = 1L,
+        updatedAt = 0L,
+    )
+    val salary = AccountCategoryEntity(
+        id = "preview-salary",
+        name = "工资",
+        type = AccountType.INCOME,
+        isDefault = true,
+        isActive = true,
+        createdAt = 2L,
+        updatedAt = 0L,
+    )
+    val previewDate = LocalDate.of(2026, 7, 17)
+    val entries = listOf(
+        AccountEntryWithCategory(
+            entry = AccountEntryEntity(
+                id = "preview-entry-1",
+                entryDate = previewDate,
+                entryTime = LocalTime.of(12, 30),
+                type = AccountType.EXPENSE,
+                amountInCents = 2_860L,
+                name = "午餐",
+                categoryId = dining.id,
+                note = "和朋友一起吃饭",
+                createdAt = 0L,
+                updatedAt = 0L,
+            ),
+            category = dining,
+        ),
+        AccountEntryWithCategory(
+            entry = AccountEntryEntity(
+                id = "preview-entry-2",
+                entryDate = previewDate.minusDays(1),
+                entryTime = LocalTime.of(8, 20),
+                type = AccountType.EXPENSE,
+                amountInCents = 600L,
+                name = "地铁",
+                categoryId = transport.id,
+                note = null,
+                createdAt = 0L,
+                updatedAt = 0L,
+            ),
+            category = transport,
+        ),
+        AccountEntryWithCategory(
+            entry = AccountEntryEntity(
+                id = "preview-entry-3",
+                entryDate = previewDate.minusDays(2),
+                entryTime = LocalTime.of(9, 0),
+                type = AccountType.INCOME,
+                amountInCents = 850_000L,
+                name = "七月工资",
+                categoryId = salary.id,
+                note = null,
+                createdAt = 0L,
+                updatedAt = 0L,
+            ),
+            category = salary,
+        ),
+    )
+    val uiState = AccountingBrowseUiState(
+        items = entries,
+        categories = listOf(dining, transport, salary),
+        selectedYear = 2026,
+        selectedMonth = 7,
+        totalCount = entries.size,
+        initialized = true,
+    )
+
+    BlueTheme(dynamicColor = false) {
+        Scaffold(
+            containerColor = BrowseBackground,
+            topBar = { BrowseTopBar(onBack = {}) },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    AccountingBrowseFilters(
+                        uiState = uiState,
+                        onAllYears = {},
+                        onCurrentYear = {},
+                        onMoveYear = {},
+                        onMonthSelected = {},
+                        onTypeSelected = {},
+                        onCategorySelected = {},
+                        onSearchChanged = {},
+                        onSortSelected = { _, _ -> },
+                    )
+                }
+                item { BrowseResultHeader(uiState) }
+                items(entries, key = { it.entry.id }) { item ->
+                    BrowseEntryCard(item = item, onClick = {})
+                }
+                item { Text("已经到底了", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
             }
         }
     }
