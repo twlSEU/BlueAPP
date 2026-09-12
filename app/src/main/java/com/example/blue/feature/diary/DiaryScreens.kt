@@ -41,6 +41,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -52,6 +53,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -137,6 +139,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -278,10 +281,16 @@ fun DiaryMonthScreen(
     onCreateDiaryForDate: (LocalDate) -> Unit = { onCreateDiary() },
 ) {
     val yearMonth = remember(year, month) { YearMonth.of(year, month) }
-    val diaryFlow = remember(repository, yearMonth) { repository.observeMonth(yearMonth) }
+    // Keep the lazy list out of layout until Room has emitted real data. On a back
+    // navigation the flow otherwise starts as an empty list, which clamps the restored
+    // LazyListState to index 0 before the month's entries arrive.
+    val diaryFlow = remember(repository, yearMonth) {
+        repository.observeMonth(yearMonth)
+            .map<List<DiaryWithImages>, List<DiaryWithImages>?> { it }
+    }
     val summaryFlow = remember(repository, yearMonth) { repository.observeMonthSummary(yearMonth) }
     val moodFlow = remember(repository, yearMonth) { repository.observeMonthMoodCounts(yearMonth) }
-    val diaries by diaryFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val diaries by diaryFlow.collectAsStateWithLifecycle(initialValue = null)
     val summary by summaryFlow.collectAsStateWithLifecycle(
         initialValue = DiaryPeriodSummary(
             recordDays = 0,
@@ -292,8 +301,9 @@ fun DiaryMonthScreen(
         ),
     )
     val moods by moodFlow.collectAsStateWithLifecycle(initialValue = emptyList())
-    val diariesByDate = remember(diaries) { diaries.groupBy { it.diary.diaryDate } }
-    val recordedDates = remember(diariesByDate) { diariesByDate.keys.sortedDescending() }
+    val diariesByDate = remember(diaries) { diaries?.groupBy { it.diary.diaryDate } }
+    val recordedDates = remember(diariesByDate) { diariesByDate?.keys?.sortedDescending() }
+    val listState = rememberLazyListState()
     Scaffold(
         topBar = { AppTopBar(title = "${year}年${month}月日记", onBack = onBack) },
         floatingActionButton = {
@@ -302,42 +312,52 @@ fun DiaryMonthScreen(
             }
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item(key = "month-summary-$year-$month", contentType = "month-summary") {
-                DiaryMonthSummaryCard(summary = summary, moods = moods)
+        if (recordedDates == null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = DiaryEditorBlue)
             }
-            if (recordedDates.isEmpty()) {
-                item(key = "empty-month", contentType = "empty-state") {
-                    EmptyDiaryMonth(
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                        message = "这个月还没有日记。",
-                    )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                state = listState,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item(key = "month-summary-$year-$month", contentType = "month-summary") {
+                    DiaryMonthSummaryCard(summary = summary, moods = moods)
                 }
-            } else {
-                items(
-                    items = recordedDates,
-                    key = { it.toString() },
-                    contentType = { "diary-day-section" },
-                ) { date ->
-                    DiaryDaySection(
-                        date = date,
-                        diaries = diariesByDate[date].orEmpty(),
-                        onOpenDiary = onOpenDiary,
-                        onCreateDiary = { onCreateDiaryForDate(date) },
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                    )
+                if (recordedDates.isEmpty()) {
+                    item(key = "empty-month", contentType = "empty-state") {
+                        EmptyDiaryMonth(
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(180),
+                                placementSpec = tween(220),
+                                fadeOutSpec = tween(180),
+                            ),
+                            message = "这个月还没有日记。",
+                        )
+                    }
+                } else {
+                    items(
+                        items = recordedDates,
+                        key = { it.toString() },
+                        contentType = { "diary-day-section" },
+                    ) { date ->
+                        DiaryDaySection(
+                            date = date,
+                            diaries = diariesByDate?.get(date).orEmpty(),
+                            onOpenDiary = onOpenDiary,
+                            onCreateDiary = { onCreateDiaryForDate(date) },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(180),
+                                placementSpec = tween(220),
+                                fadeOutSpec = tween(180),
+                            ),
+                        )
+                    }
                 }
             }
         }

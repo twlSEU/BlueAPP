@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -42,6 +43,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -116,6 +118,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 private val accountDateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
@@ -214,9 +217,12 @@ fun AccountingMonthScreen(
 ) {
     val today = remember { LocalDate.now() }
     val yearMonth = remember(year, month) { YearMonth.of(year, month) }
+    // An empty initial value would lay out the restored list with only its summary card
+    // and clamp its saved scroll index to the top before Room emits the actual month.
     val entries by remember(repository, yearMonth) {
         repository.observeMonth(yearMonth)
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
+            .map<List<AccountEntryWithCategory>, List<AccountEntryWithCategory>?> { it }
+    }.collectAsStateWithLifecycle(initialValue = null)
     val monthSummary by remember(repository, yearMonth) {
         repository.observeMonthSummary(yearMonth)
     }.collectAsStateWithLifecycle(initialValue = emptyAccountPeriodSummary())
@@ -237,20 +243,21 @@ fun AccountingMonthScreen(
 private fun AccountingMonthContent(
     yearMonth: YearMonth,
     today: LocalDate,
-    entries: List<AccountEntryWithCategory>,
+    entries: List<AccountEntryWithCategory>?,
     monthSummary: AccountPeriodSummary,
     onOpenDay: (Int) -> Unit,
     onCreateEntry: () -> Unit,
     onBack: () -> Unit,
 ) {
-    val grouped = remember(entries) { entries.groupBy { it.entry.entryDate } }
+    val grouped = remember(entries) { entries?.groupBy { it.entry.entryDate } }
     val summary = remember(monthSummary) {
         AccountSummary(
             incomeInCents = monthSummary.incomeInCents,
             expenseInCents = monthSummary.expenseInCents,
         )
     }
-    val displayedDays = remember(grouped) { grouped.keys.map { it.dayOfMonth }.sortedDescending() }
+    val displayedDays = remember(grouped) { grouped?.keys?.map { it.dayOfMonth }?.sortedDescending() }
+    val listState = rememberLazyListState()
 
     Scaffold(
         containerColor = AccountingBackground,
@@ -281,46 +288,56 @@ private fun AccountingMonthContent(
             }
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                AccountSummaryCard(
-                    title = "本月汇总",
-                    supportingText = if (monthSummary.entryCount == 0) {
-                        "还没有账目记录"
-                    } else {
-                        buildString {
-                            append("共 ${monthSummary.entryCount} 笔 · ${monthSummary.recordDays} 个记账日")
-                            if (monthSummary.largestExpenseInCents > 0L) {
-                                append(" · 最大支出 ¥${AmountUtils.formatCents(monthSummary.largestExpenseInCents)}")
-                            }
-                        }
-                    },
-                    summary = summary,
-                )
+        if (displayedDays == null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = AccountingAccent)
             }
-            items(
-                items = displayedDays,
-                key = { day -> yearMonth.atDay(day) },
-            ) { day ->
-                val date = yearMonth.atDay(day)
-                val dayEntries = grouped[date].orEmpty()
-                val dailySummary = remember(dayEntries) { dayEntries.map { it.entry }.toAccountSummary() }
-                AccountDayCard(
-                    date = date,
-                    isToday = date == today,
-                    entryCount = dayEntries.size,
-                    summary = dailySummary,
-                    onClick = { onOpenDay(day) },
-                    modifier = Modifier.animateItem(
-                        fadeInSpec = tween(180),
-                        placementSpec = tween(220),
-                        fadeOutSpec = tween(180),
-                    ),
-                )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                state = listState,
+                contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    AccountSummaryCard(
+                        title = "本月汇总",
+                        supportingText = if (monthSummary.entryCount == 0) {
+                            "还没有账目记录"
+                        } else {
+                            buildString {
+                                append("共 ${monthSummary.entryCount} 笔 · ${monthSummary.recordDays} 个记账日")
+                                if (monthSummary.largestExpenseInCents > 0L) {
+                                    append(" · 最大支出 ¥${AmountUtils.formatCents(monthSummary.largestExpenseInCents)}")
+                                }
+                            }
+                        },
+                        summary = summary,
+                    )
+                }
+                items(
+                    items = displayedDays,
+                    key = { day -> yearMonth.atDay(day) },
+                ) { day ->
+                    val date = yearMonth.atDay(day)
+                    val dayEntries = grouped?.get(date).orEmpty()
+                    val dailySummary = remember(dayEntries) { dayEntries.map { it.entry }.toAccountSummary() }
+                    AccountDayCard(
+                        date = date,
+                        isToday = date == today,
+                        entryCount = dayEntries.size,
+                        summary = dailySummary,
+                        onClick = { onOpenDay(day) },
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(180),
+                            placementSpec = tween(220),
+                            fadeOutSpec = tween(180),
+                        ),
+                    )
+                }
             }
         }
     }
