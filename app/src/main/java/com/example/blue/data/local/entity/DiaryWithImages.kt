@@ -23,10 +23,11 @@ data class DiaryWithImages(
  */
 val DiaryWithImages.selectedMoodIds: Set<Int>
     get() {
-        val related = moods
-            .map(DiaryMoodEntity::mood)
-            .filter(DiaryMoodIds::isValid)
-            .toSet()
+        val related = buildSet {
+            moods.forEach { mood ->
+                if (DiaryMoodIds.isValid(mood.mood)) add(mood.mood)
+            }
+        }
         return if (related.isNotEmpty()) {
             related
         } else {

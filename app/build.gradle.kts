@@ -26,7 +26,20 @@ android {
     buildTypes {
         release {
             optimization {
-                enable = false
+                // AGP 9's optimizer runs R8 and optimized resource shrinking together.
+                enable = true
+            }
+        }
+        create("performance") {
+            initWith(getByName("release"))
+            // Keep this installable for local, production-like phone testing without
+            // changing the signing configuration or package name of the real release.
+            signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".performance"
+            versionNameSuffix = "-performance"
+            isDebuggable = false
+            optimization {
+                enable = true
             }
         }
     }

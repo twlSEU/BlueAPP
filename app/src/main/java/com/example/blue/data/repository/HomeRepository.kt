@@ -3,6 +3,7 @@ package com.example.blue.data.repository
 import com.example.blue.data.local.dao.HomeDao
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 data class HomeMetricsSnapshot(
     val diaryMonthCount: Int = 0,
@@ -22,5 +23,5 @@ class OfflineHomeRepository(
         homeDao.observeMetrics(
             startDate = yearMonth.atDay(1),
             endDateExclusive = yearMonth.plusMonths(1).atDay(1),
-        )
+        ).distinctUntilChanged()
 }

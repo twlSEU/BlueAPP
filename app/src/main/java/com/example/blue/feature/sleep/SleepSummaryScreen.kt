@@ -138,12 +138,11 @@ fun SleepSummaryScreen(
                 onNext = summaryViewModel::nextPeriod,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
-            AnimatedContent(
-                targetState = selection.mode,
-                modifier = Modifier.weight(1f),
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
-                label = "Sleep summary mode",
-            ) { mode ->
+            // Month and year pages contain large lazy trees. Keeping both trees alive during an
+            // AnimatedContent transition makes a mode switch do duplicate composition/layout work.
+            // The period label still carries the directional motion cue below; swap the heavy page
+            // directly so the first frame after a tap stays within the frame budget.
+            Box(modifier = Modifier.weight(1f)) {
                 when (val contentState = state) {
                     SleepSummaryUiState.Loading -> {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -154,7 +153,10 @@ fun SleepSummaryScreen(
                         SummaryErrorState(contentState.message, summaryViewModel::retry)
                     }
                     is SleepSummaryUiState.Ready -> {
-                        if (mode == SleepSummaryMode.MONTH && contentState.mode == SleepSummaryMode.MONTH) {
+                        if (
+                            selection.mode == SleepSummaryMode.MONTH &&
+                            contentState.mode == SleepSummaryMode.MONTH
+                        ) {
                             SleepMonthlyContent(contentState, onOpenDay)
                         } else if (contentState.mode == SleepSummaryMode.YEAR) {
                             SleepAnnualContent(
@@ -272,16 +274,16 @@ private fun SleepMonthlyContent(
         contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item(key = "calendar") {
+        item(key = "calendar", contentType = "calendar") {
             SleepMonthCalendar(
                 yearMonth = state.selectedMonth,
                 records = state.records,
                 onOpenDay = onOpenDay,
             )
         }
-        item(key = "legend") { SleepHeatLegend() }
+        item(key = "legend", contentType = "legend") { SleepHeatLegend() }
         if (state.records.isEmpty()) {
-            item(key = "empty") {
+            item(key = "empty", contentType = "status") {
                 SleepInfoCard(
                     title = "这个月还没有记录",
                     body = "点击日历中的日期即可开始记录。",
@@ -293,7 +295,9 @@ private fun SleepMonthlyContent(
                 )
             }
         }
-        item(key = "stats") { SleepMonthSummaryCard(state.monthStatistics) }
+        item(key = "stats", contentType = "statistics") {
+            SleepMonthSummaryCard(state.monthStatistics)
+        }
     }
 }
 
@@ -436,14 +440,19 @@ private fun SleepAnnualContent(
         contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item(key = "annual-note") {
+        item(key = "annual-note", contentType = "status") {
             SleepInfoCard(
                 title = if (records.isEmpty()) "这一年还没有记录" else "全年记录 ${records.size} 天",
                 body = "颜色等级与月度日历一致；点击月份查看大日历，点击日期直接编辑。",
             )
         }
-        item(key = "annual-legend") { SleepHeatLegend() }
-        items((1..12).toList(), key = { month -> "$year-$month" }) { month ->
+        item(key = "annual-legend", contentType = "legend") { SleepHeatLegend() }
+        items(
+            count = 12,
+            key = { monthIndex -> "$year-${monthIndex + 1}" },
+            contentType = { "annual-month" },
+        ) { monthIndex ->
+            val month = monthIndex + 1
             val yearMonth = YearMonth.of(year, month)
             AnnualMonthHeatmap(
                 yearMonth = yearMonth,

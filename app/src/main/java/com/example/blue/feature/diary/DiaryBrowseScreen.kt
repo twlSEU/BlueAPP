@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -71,8 +72,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -153,6 +157,7 @@ class DiaryBrowseViewModel(
     val uiState: StateFlow<DiaryBrowseUiState> = _uiState.asStateFlow()
 
     private var refreshJob: Job? = null
+    private var hasBeenVisible = false
 
     init {
         refresh()
@@ -160,6 +165,10 @@ class DiaryBrowseViewModel(
 
     /** Re-reads the retained window after returning from an editor without resetting its anchor. */
     fun onScreenVisible() {
+        if (!hasBeenVisible) {
+            hasBeenVisible = true
+            return
+        }
         val state = _uiState.value
         if (state.isRefreshing || state.isLoadingNext || state.isLoadingPrevious) return
         if (state.items.isEmpty()) refresh() else reloadCurrentWindow()
@@ -472,7 +481,7 @@ fun DiaryBrowseScreen(
                 contentPadding = PaddingValues(start = 16.dp, top = 10.dp, end = 16.dp, bottom = 30.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item(key = "browse-controls") {
+                item(key = "browse-controls", contentType = "browse-controls") {
                     DiaryBrowseControls(
                         state = state,
                         onDateChange = browseViewModel::applyDateFilter,
@@ -480,7 +489,7 @@ fun DiaryBrowseScreen(
                     )
                 }
                 if (state.isEmpty) {
-                    item(key = "filtered-empty") {
+                    item(key = "filtered-empty", contentType = "browse-status") {
                         DiaryBrowseFilteredEmpty(
                             filterLabel = state.filterLabel,
                             onClearFilter = { browseViewModel.applyDateFilter(null, null, null) },
@@ -493,32 +502,35 @@ fun DiaryBrowseScreen(
                     }
                 }
                 if (state.isLoadingPrevious) {
-                    item(key = "loading-previous") { DiaryInlineLoading("正在载入较近的日记…") }
+                    item(key = "loading-previous", contentType = "browse-status") {
+                        DiaryInlineLoading("正在载入较近的日记…")
+                    }
                 }
                 if (state.errorMessage != null && state.failedAction == DiaryBrowseLoadAction.PREVIOUS) {
-                    item(key = "error-previous") {
+                    item(key = "error-previous", contentType = "browse-status") {
                         DiaryInlineError(state.errorMessage.orEmpty(), browseViewModel::retry)
                     }
                 }
-                items(items = state.items, key = { it.diary.id }) { diary ->
+                items(
+                    items = state.items,
+                    key = { it.diary.id },
+                    contentType = { "diary-card" },
+                ) { diary ->
                     DiaryBrowseCard(
                         diary = diary,
                         imageStorage = imageStorage,
                         onOpenDiary = { onOpenDiary(diary.diary.id) },
                         onPreview = { paths, index -> preview = paths to index },
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
                     )
                 }
                 when {
-                    state.isLoadingNext -> item(key = "loading-next") { DiaryInlineLoading("正在载入更多日记…") }
-                    state.errorMessage != null -> item(key = "error-next") {
+                    state.isLoadingNext -> item(key = "loading-next", contentType = "browse-status") {
+                        DiaryInlineLoading("正在载入更多日记…")
+                    }
+                    state.errorMessage != null -> item(key = "error-next", contentType = "browse-status") {
                         DiaryInlineError(state.errorMessage.orEmpty(), browseViewModel::retry)
                     }
-                    !state.canLoadNext && !state.isEmpty -> item(key = "no-more") {
+                    !state.canLoadNext && !state.isEmpty -> item(key = "no-more", contentType = "browse-status") {
                         Text(
                             "已经浏览到这里了",
                             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
@@ -549,6 +561,15 @@ private fun DiaryBrowseControls(
     onDateChange: (Int?, Int?, Int?) -> Unit,
     onOrderChange: (DiaryBrowseOrder) -> Unit,
 ) {
+    val currentYear = remember { LocalDate.now().year }
+    val yearOptions = remember(currentYear) { (currentYear downTo 1970).map(Int::toString) }
+    val monthOptions = remember { (1..12).map(Int::toString) }
+    val daysInMonth = remember(state.selectedYear, state.selectedMonth) {
+        state.selectedYear?.let { year ->
+            state.selectedMonth?.let { month -> YearMonth.of(year, month).lengthOfMonth() }
+        } ?: 31
+    }
+    val dayOptions = remember(daysInMonth) { (1..daysInMonth).map(Int::toString) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -581,24 +602,22 @@ private fun DiaryBrowseControls(
                 BrowseDateDropdown(
                     label = "年",
                     value = state.selectedYear?.toString() ?: "全部",
-                    options = (LocalDate.now().year downTo 1970).map(Int::toString),
+                    options = yearOptions,
                     enabled = true,
+                    lazyOptions = true,
                     onSelect = { value -> onDateChange(value?.toInt(), null, null) },
                 )
                 BrowseDateDropdown(
                     label = "月",
                     value = state.selectedMonth?.toString() ?: "全部",
-                    options = (1..12).map(Int::toString),
+                    options = monthOptions,
                     enabled = state.selectedYear != null,
                     onSelect = { value -> onDateChange(state.selectedYear, value?.toInt(), null) },
                 )
-                val daysInMonth = state.selectedYear?.let { year ->
-                    state.selectedMonth?.let { month -> YearMonth.of(year, month).lengthOfMonth() }
-                } ?: 31
                 BrowseDateDropdown(
                     label = "日",
                     value = state.selectedDay?.toString() ?: "全部",
-                    options = (1..daysInMonth).map(Int::toString),
+                    options = dayOptions,
                     enabled = state.selectedMonth != null,
                     onSelect = { value -> onDateChange(state.selectedYear, state.selectedMonth, value?.toInt()) },
                 )
@@ -644,6 +663,7 @@ private fun RowScope.BrowseDateDropdown(
     value: String,
     options: List<String>,
     enabled: Boolean,
+    lazyOptions: Boolean = false,
     onSelect: (String?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -691,40 +711,88 @@ private fun RowScope.BrowseDateDropdown(
                 }
             }
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 260.dp),
-            shape = RoundedCornerShape(16.dp),
-            containerColor = BrowseSurface,
-            border = BorderStroke(1.dp, BrowseBorder),
-        ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        "全部",
-                        fontWeight = if (value == "全部") FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (value == "全部") BrowseBlue else BrowseTitle,
-                    )
+        if (expanded && lazyOptions) {
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = with(LocalDensity.current) {
+                    IntOffset(0, 54.dp.roundToPx())
                 },
-                trailingIcon = { if (value == "全部") BrowseSelectedDot() },
-                onClick = { onSelect(null); expanded = false },
-            )
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            option,
-                            fontWeight = if (value == option) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (value == option) BrowseBlue else BrowseTitle,
-                        )
-                    },
-                    trailingIcon = { if (value == option) BrowseSelectedDot() },
-                    onClick = { onSelect(option); expanded = false },
+                onDismissRequest = { expanded = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                Surface(
+                    modifier = Modifier.height(260.dp).widthIn(min = 112.dp, max = 280.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = BrowseSurface,
+                    border = BorderStroke(1.dp, BrowseBorder),
+                    shadowElevation = 8.dp,
+                ) {
+                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                        item(key = "all", contentType = "date-option") {
+                            BrowseDateDropdownItem(
+                                option = null,
+                                selectedValue = value,
+                                onClick = { onSelect(null); expanded = false },
+                            )
+                        }
+                        items(
+                            items = options,
+                            key = { it },
+                            contentType = { "date-option" },
+                        ) { option ->
+                            BrowseDateDropdownItem(
+                                option = option,
+                                selectedValue = value,
+                                onClick = { onSelect(option); expanded = false },
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.heightIn(max = 260.dp),
+                shape = RoundedCornerShape(16.dp),
+                containerColor = BrowseSurface,
+                border = BorderStroke(1.dp, BrowseBorder),
+            ) {
+                BrowseDateDropdownItem(
+                    option = null,
+                    selectedValue = value,
+                    onClick = { onSelect(null); expanded = false },
                 )
+                options.forEach { option ->
+                    BrowseDateDropdownItem(
+                        option = option,
+                        selectedValue = value,
+                        onClick = { onSelect(option); expanded = false },
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun BrowseDateDropdownItem(
+    option: String?,
+    selectedValue: String,
+    onClick: () -> Unit,
+) {
+    val label = option ?: "全部"
+    DropdownMenuItem(
+        text = {
+            Text(
+                label,
+                fontWeight = if (selectedValue == label) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selectedValue == label) BrowseBlue else BrowseTitle,
+            )
+        },
+        trailingIcon = { if (selectedValue == label) BrowseSelectedDot() },
+        onClick = onClick,
+    )
 }
 
 @Composable
@@ -853,12 +921,16 @@ private fun DiaryBrowseCard(
                     contentPadding = PaddingValues(horizontal = 18.dp),
                     horizontalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    items(sortedImages, key = { it.id }) { image ->
+                    itemsIndexed(
+                        items = sortedImages,
+                        key = { _, image -> image.id },
+                        contentType = { _, _ -> "diary-thumbnail" },
+                    ) { index, image ->
                         DiaryThumbnail(
                             localPath = image.localPath,
                             imageStorage = imageStorage,
                             contentDescription = "${entry.diaryDate} 的日记照片",
-                            onClick = { onPreview(paths, sortedImages.indexOf(image)) },
+                            onClick = { onPreview(paths, index) },
                         )
                     }
                 }

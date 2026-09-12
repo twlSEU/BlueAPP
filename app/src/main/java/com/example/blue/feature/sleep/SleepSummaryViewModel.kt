@@ -76,6 +76,7 @@ class SleepSummaryViewModel(
 
     fun setMode(mode: SleepSummaryMode) {
         val current = query.value
+        if (current.mode == mode) return
         query.value = if (mode == SleepSummaryMode.MONTH && current.mode == SleepSummaryMode.YEAR) {
             val month = if (current.selectedYear == currentYear) {
                 currentMonth.monthValue

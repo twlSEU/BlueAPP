@@ -216,7 +216,7 @@ fun DiaryYearScreen(
             contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item {
+            item(key = "year-selector", contentType = "year-selector") {
                 YearSelector(
                     year = year,
                     canMoveForward = year < currentYear,
@@ -226,6 +226,7 @@ fun DiaryYearScreen(
             items(
                 items = displayedMonths,
                 key = { month -> "$year-$month" },
+                contentType = { "diary-month-card" },
             ) { month ->
                 val aggregate = byMonth[month]
                 MonthCard(
@@ -306,11 +307,11 @@ fun DiaryMonthScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item(key = "month-summary-$year-$month") {
+            item(key = "month-summary-$year-$month", contentType = "month-summary") {
                 DiaryMonthSummaryCard(summary = summary, moods = moods)
             }
             if (recordedDates.isEmpty()) {
-                item(key = "empty-month") {
+                item(key = "empty-month", contentType = "empty-state") {
                     EmptyDiaryMonth(
                         modifier = Modifier.animateItem(
                             fadeInSpec = tween(180),
@@ -321,7 +322,11 @@ fun DiaryMonthScreen(
                     )
                 }
             } else {
-                items(recordedDates, key = { it.toString() }) { date ->
+                items(
+                    items = recordedDates,
+                    key = { it.toString() },
+                    contentType = { "diary-day-section" },
+                ) { date ->
                     DiaryDaySection(
                         date = date,
                         diaries = diariesByDate[date].orEmpty(),
@@ -498,7 +503,7 @@ fun DiaryEditorScreen(
                 contentPadding = PaddingValues(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item {
+                item(key = "date-time", contentType = "editor-section") {
                     AppDateTimeSelectorRow(
                         date = dateText,
                         time = timeText,
@@ -506,13 +511,13 @@ fun DiaryEditorScreen(
                         onSelectTime = { showTimePicker = true },
                     )
                 }
-                item {
+                item(key = "moods", contentType = "editor-section") {
                     MoodSelector(selected = selectedMoods, onSelected = { selectedMoods = it })
                 }
-                item {
+                item(key = "content", contentType = "editor-section") {
                     DiaryTextEditor(value = content, onValueChange = { content = it.take(DiaryContentCharacterLimit) })
                 }
-                item {
+                item(key = "photos", contentType = "editor-section") {
                     DiaryPhotoSection(
                         photos = photos,
                         imageStorage = imageStorage,
@@ -908,7 +913,11 @@ private fun DiaryPhotoSection(
                     contentPadding = PaddingValues(start = 18.dp, top = 2.dp, end = 22.dp, bottom = 0.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(photos, key = { it.key }) { photo ->
+                    items(
+                        items = photos,
+                        key = { it.key },
+                        contentType = { "editor-photo" },
+                    ) { photo ->
                         Box(
                             modifier = Modifier
                                 .animateItem(
@@ -1626,7 +1635,7 @@ private fun ImagePreviewDialog(
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-                beyondViewportPageCount = 1,
+                beyondViewportPageCount = 0,
             ) { page ->
                 PreviewImage(model = photos[page].model(imageStorage))
             }

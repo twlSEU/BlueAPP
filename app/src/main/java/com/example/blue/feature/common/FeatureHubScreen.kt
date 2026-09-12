@@ -102,6 +102,9 @@ fun FeatureHubScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .consumeWindowInsets(padding),
+            // Feature pages own database-backed lists and charts. Do not eagerly compose an
+            // adjacent page during a swipe; keep the active page's frame budget for the gesture.
+            beyondViewportPageCount = 0,
             key = { page -> tabs[page].key },
         ) { page ->
             Box(Modifier.fillMaxSize()) {

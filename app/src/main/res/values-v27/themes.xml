@@ -6,10 +6,10 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/app_background</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
 
-    <!-- Pre-Android 12 launch preview; API 31+ adds the system splash attributes. -->
     <style name="Theme.Blue.Starting" parent="Theme.Blue">
         <item name="android:windowBackground">@color/app_background</item>
     </style>

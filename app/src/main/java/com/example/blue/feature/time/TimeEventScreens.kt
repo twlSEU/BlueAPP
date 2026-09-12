@@ -3,6 +3,7 @@ package com.example.blue.feature.time
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -241,11 +242,11 @@ private fun TimeEventListContent(
             contentPadding = PaddingValues(start = 18.dp, top = 14.dp, end = 18.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(15.dp),
         ) {
-            item(key = "event-header") {
+            item(key = "event-header", contentType = "event-header") {
                 EventListHeader(filter = filter, onFilterChange = onFilterChange)
             }
             if (events.isEmpty()) {
-                item(key = "empty-events") {
+                item(key = "empty-events", contentType = "event-status") {
                     EmptyEventState(
                         filter = filter,
                         onCreateEvent = onCreateEvent,
@@ -257,7 +258,11 @@ private fun TimeEventListContent(
                     )
                 }
             } else {
-                items(events, key = TimeEventEntity::id) { event ->
+                items(
+                    items = events,
+                    key = TimeEventEntity::id,
+                    contentType = { "time-event" },
+                ) { event ->
                     TimeEventCard(
                         event = event,
                         status = timeEventStatus(event, today),
@@ -361,6 +366,7 @@ private fun TimeEventCard(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val indication = LocalIndication.current
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.985f else 1f,
         animationSpec = tween(120),
@@ -380,7 +386,7 @@ private fun TimeEventCard(
             }
             .combinedClickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = indication,
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),

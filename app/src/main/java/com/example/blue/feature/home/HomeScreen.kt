@@ -1,8 +1,10 @@
 package com.example.blue.feature.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.blue.core.navigation.AppDestination
+import com.example.blue.feature.common.appPressScale
 import com.example.blue.ui.theme.BlueTheme
 
 private val HomeBackground = Color(0xFFF5F8FC)
@@ -120,21 +123,18 @@ private fun FeatureCard(
     val palette = remember(feature.accent) { featurePalette(feature.accent) }
     val primaryAction = feature.primaryAction
     val directSecondaryAction = feature.directSecondaryAction
-    val cardShape = RoundedCornerShape(26.dp)
+    val cardInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp)
-            .shadow(
-                elevation = 10.dp,
-                shape = cardShape,
-                ambientColor = palette.glow,
-                spotColor = palette.glow,
-            ),
-        shape = cardShape,
+            .appPressScale(cardInteractionSource, pressedScale = 0.985f),
+        onClick = onFeatureClick,
+        interactionSource = cardInteractionSource,
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = BorderStroke(1.dp, palette.accent.copy(alpha = 0.10f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
     ) {
         Box(
             modifier = Modifier
@@ -212,7 +212,7 @@ private fun FeatureDimensionalIcon(
         modifier = modifier
             .size(58.dp)
             .shadow(
-                elevation = 9.dp,
+                elevation = 4.dp,
                 shape = shape,
                 ambientColor = palette.glow,
                 spotColor = palette.glow,
@@ -316,18 +316,19 @@ private fun FeaturePrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .height(40.dp)
-            .shadow(
-                elevation = 7.dp,
-                shape = CircleShape,
-                ambientColor = palette.glow,
-                spotColor = palette.glow,
-            )
+            .appPressScale(interactionSource)
             .clip(CircleShape)
             .background(Brush.horizontalGradient(listOf(palette.iconStart, palette.iconEnd)))
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                role = Role.Button,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Row(

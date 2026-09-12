@@ -139,7 +139,7 @@ fun AccountingBrowseScreen(
             contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(key = "browse-filters") {
+            item(key = "browse-filters", contentType = "filters") {
                 AccountingBrowseFilters(
                     uiState = uiState,
                     onAllYears = { browseViewModel.selectYear(null) },
@@ -153,12 +153,12 @@ fun AccountingBrowseScreen(
                 )
             }
 
-            item(key = "browse-count") {
+            item(key = "browse-count", contentType = "result-header") {
                 BrowseResultHeader(uiState)
             }
 
             if (uiState.isLoading && uiState.items.isEmpty()) {
-                item(key = "browse-initial-loading") {
+                item(key = "browse-initial-loading", contentType = "status") {
                     BrowseStatusCard(
                         title = "正在整理账目",
                         message = "稍等一下，记录很快就好。",
@@ -171,7 +171,7 @@ fun AccountingBrowseScreen(
                     )
                 }
             } else if (uiState.errorMessage != null && uiState.items.isEmpty()) {
-                item(key = "browse-initial-error") {
+                item(key = "browse-initial-error", contentType = "status") {
                     BrowseErrorCard(
                         message = uiState.errorMessage.orEmpty(),
                         onRetry = browseViewModel::retry,
@@ -183,7 +183,7 @@ fun AccountingBrowseScreen(
                     )
                 }
             } else if (uiState.initialized && uiState.items.isEmpty()) {
-                item(key = "browse-empty") {
+                item(key = "browse-empty", contentType = "status") {
                     BrowseStatusCard(
                         title = "没有找到账目",
                         message = "换一个年份、分类或搜索词试试。",
@@ -196,7 +196,7 @@ fun AccountingBrowseScreen(
                 }
             } else {
                 if (uiState.canLoadPrevious) {
-                    item(key = "browse-load-previous") {
+                    item(key = "browse-load-previous", contentType = "page-control") {
                         BrowsePageControl(
                             label = if (
                                 uiState.isLoading && uiState.loadDirection == BrowseLoadDirection.PREVIOUS
@@ -214,25 +214,21 @@ fun AccountingBrowseScreen(
                 items(
                     items = uiState.items,
                     key = { it.entry.id },
+                    contentType = { "account-entry" },
                 ) { item ->
                     BrowseEntryCard(
                         item = item,
                         onClick = { onOpenEntry(item.entry.id) },
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
                     )
                 }
 
                 if (uiState.errorMessage != null) {
-                    item(key = "browse-page-error") {
+                    item(key = "browse-page-error", contentType = "status") {
                         BrowseErrorCard(message = uiState.errorMessage.orEmpty(), onRetry = browseViewModel::retry)
                     }
                 }
 
-                item(key = "browse-footer") {
+                item(key = "browse-footer", contentType = "page-control") {
                     when {
                         uiState.isLoading && uiState.loadDirection != BrowseLoadDirection.REFRESH -> {
                             BrowsePageControl(label = "正在加载更多…", enabled = false, onClick = {})

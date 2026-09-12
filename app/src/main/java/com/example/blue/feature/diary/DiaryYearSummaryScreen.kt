@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -567,17 +568,20 @@ private fun DiaryMetric(label: String, value: String, suffix: String, modifier: 
 @Composable
 private fun DiaryMonthlyBarChart(values: List<Long>, color: Color) {
     val maxValue = values.maxOrNull()?.coerceAtLeast(1L) ?: 1L
+    val density = LocalDensity.current
+    val labelPaint = remember(density) {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = with(density) { 10.sp.toPx() }
+            textAlign = Paint.Align.CENTER
+            this.color = SummaryMuted.toArgb()
+        }
+    }
     Canvas(modifier = Modifier.fillMaxWidth().height(180.dp)) {
         val chartTop = 8.dp.toPx()
         val chartBottom = size.height - 24.dp.toPx()
         val chartHeight = chartBottom - chartTop
         val slot = size.width / 12f
         val barWidth = slot * 0.52f
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 10.sp.toPx()
-            textAlign = Paint.Align.CENTER
-            this.color = SummaryMuted.toArgb()
-        }
         values.forEachIndexed { index, value ->
             val height = chartHeight * (value.toFloat() / maxValue.toFloat())
             val left = slot * index + (slot - barWidth) / 2f
@@ -594,10 +598,11 @@ private fun DiaryMonthlyBarChart(values: List<Long>, color: Color) {
 
 @Composable
 private fun DiaryMoodDonut(moods: List<DiaryMoodAggregate>, modifier: Modifier = Modifier) {
-    val total = moods.sumOf { it.count }.coerceAtLeast(1)
+    val sortedMoods = remember(moods) { moods.sortedByDescending { it.count } }
+    val total = remember(sortedMoods) { sortedMoods.sumOf { it.count }.coerceAtLeast(1) }
     Canvas(modifier = modifier) {
         var start = -90f
-        moods.sortedByDescending { it.count }.forEachIndexed { index, mood ->
+        sortedMoods.forEachIndexed { index, mood ->
             val sweep = mood.count * 360f / total
             drawArc(
                 color = summaryChartColors[index % summaryChartColors.size],
@@ -613,17 +618,20 @@ private fun DiaryMoodDonut(moods: List<DiaryMoodAggregate>, modifier: Modifier =
 
 @Composable
 private fun DiaryMoodLineChart(points: List<Double?>) {
+    val density = LocalDensity.current
+    val labelPaint = remember(density) {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = with(density) { 9.sp.toPx() }
+            textAlign = Paint.Align.CENTER
+            color = SummaryMuted.toArgb()
+        }
+    }
     Canvas(modifier = Modifier.fillMaxWidth().height(164.dp)) {
         val left = 8.dp.toPx()
         val right = size.width - 8.dp.toPx()
         val top = 12.dp.toPx()
         val bottom = size.height - 28.dp.toPx()
         val xStep = (right - left) / 11f
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 9.sp.toPx()
-            textAlign = Paint.Align.CENTER
-            color = SummaryMuted.toArgb()
-        }
         var previous: Offset? = null
         points.forEachIndexed { index, score ->
             val x = left + index * xStep
@@ -644,6 +652,7 @@ private fun DiaryMoodLineChart(points: List<Double?>) {
 @Composable
 private fun DiaryWordCloud(words: List<DiaryWordFrequency>) {
     val maxCount = words.maxOfOrNull { it.count }?.coerceAtLeast(1) ?: 1
+    val density = LocalDensity.current
     val positions = remember {
         listOf(
             0.50f to 0.48f, 0.25f to 0.28f, 0.74f to 0.25f, 0.22f to 0.70f, 0.76f to 0.70f,
@@ -652,19 +661,29 @@ private fun DiaryWordCloud(words: List<DiaryWordFrequency>) {
             0.12f to 0.86f, 0.87f to 0.86f, 0.50f to 0.30f,
         )
     }
-    Canvas(modifier = Modifier.fillMaxWidth().height(220.dp).background(Color(0xFFF4F7FA), RoundedCornerShape(18.dp))) {
-        words.forEachIndexed { index, item ->
-            if (index >= positions.size) return@forEachIndexed
+    val wordPaints = remember(words, maxCount, density) {
+        words.take(positions.size).mapIndexed { index, item ->
             val scale = item.count.toFloat() / maxCount
-            val textSize = (12f + 13f * scale).sp.toPx()
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.textSize = textSize
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = with(density) { (12f + 13f * scale).sp.toPx() }
                 textAlign = Paint.Align.CENTER
                 color = summaryChartColors[index % summaryChartColors.size].toArgb()
-                typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, if (index < 4) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+                typeface = android.graphics.Typeface.create(
+                    android.graphics.Typeface.DEFAULT,
+                    if (index < 4) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL,
+                )
             }
+        }
+    }
+    Canvas(modifier = Modifier.fillMaxWidth().height(220.dp).background(Color(0xFFF4F7FA), RoundedCornerShape(18.dp))) {
+        words.take(positions.size).forEachIndexed { index, item ->
             val (x, y) = positions[index]
-            drawContext.canvas.nativeCanvas.drawText(item.word, size.width * x, size.height * y, paint)
+            drawContext.canvas.nativeCanvas.drawText(
+                item.word,
+                size.width * x,
+                size.height * y,
+                wordPaints[index],
+            )
         }
     }
 }
