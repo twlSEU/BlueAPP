@@ -496,7 +496,6 @@ fun AccountingDayScreen(
     }.collectAsStateWithLifecycle(initialValue = emptyList())
     var deleting by remember { mutableStateOf<AccountEntryWithCategory?>(null) }
     val scope = rememberCoroutineScope()
-    val dailySummary = remember(daily) { daily.map { it.entry }.toAccountSummary() }
 
     Scaffold(
         containerColor = AccountingBackground,
@@ -518,43 +517,13 @@ fun AccountingDayScreen(
             }
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                AccountSummaryCard(
-                    title = "当日汇总",
-                    supportingText = "${date.accountingWeekday()} · ${daily.size} 笔账目",
-                    summary = dailySummary,
-                )
-            }
-            if (daily.isEmpty()) {
-                item(key = "empty-accounts") {
-                    EmptyAccountsCard(
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                    )
-                }
-            } else {
-                items(daily, key = { it.entry.id }) { item ->
-                    AccountEntryCard(
-                        item = item,
-                        onClick = { onEdit(item.entry.id) },
-                        onDelete = { deleting = item },
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                    )
-                }
-            }
-        }
+        AccountingDayContent(
+            date = date,
+            entries = daily,
+            onEdit = onEdit,
+            onDelete = { deleting = it },
+            modifier = Modifier.padding(padding),
+        )
     }
 
     deleting?.let { target ->
@@ -2397,6 +2366,7 @@ private fun AccountingYearScreenPreview() {
     widthDp = 390,
     heightDp = 844,
 )
+@Preview(name = "记账 · 当日账目 · 窄屏", showBackground = true, widthDp = 320, heightDp = 740)
 @Composable
 private fun AccountingDayScreenPreview() {
     val date = LocalDate.of(2026, 7, 17)
@@ -2406,7 +2376,6 @@ private fun AccountingDayScreenPreview() {
         accountingPreviewEntry("午餐", 2_860L, date, LocalTime.of(12, 30), dining, "day-1"),
         accountingPreviewEntry("地铁", 600L, date, LocalTime.of(8, 20), transport, "day-2"),
     )
-    val summary = entries.map { it.entry }.toAccountSummary()
 
     BlueTheme(dynamicColor = false) {
         Scaffold(
@@ -2423,22 +2392,10 @@ private fun AccountingDayScreenPreview() {
                 }
             },
         ) { padding ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                item {
-                    AccountSummaryCard(
-                        title = "当日汇总",
-                        supportingText = "星期五 · ${entries.size} 笔账目",
-                        summary = summary,
-                    )
-                }
-                items(entries, key = { it.entry.id }) { item ->
-                    AccountEntryCard(item = item, onClick = {}, onDelete = {})
-                }
-            }
+            AccountingDayContent(
+                date = date, entries = entries, onEdit = {}, onDelete = {},
+                modifier = Modifier.padding(padding),
+            )
         }
     }
 }
