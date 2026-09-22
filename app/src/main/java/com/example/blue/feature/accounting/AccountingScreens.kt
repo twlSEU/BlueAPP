@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -137,6 +140,20 @@ private val AccountingExpense = Color(0xFFC96868)
 private val AccountingExpenseSoft = Color(0xFFFFEEEE)
 private val AccountingBorder = Color(0xFFDCE7EE)
 private val AccountingCardShape = RoundedCornerShape(24.dp)
+private val AccountingExpenseHeatColors = listOf(
+    Color(0xFFE4F3EB), Color(0xFFB9DFCA), Color(0xFFF6E6AF),
+    Color(0xFFF3C28D), Color(0xFFD98070), Color(0xFFB84D60),
+)
+
+internal fun accountingExpenseHeatLevel(cents: Long): Int? = when {
+    cents <= 0L -> null
+    cents <= 2_000L -> 0
+    cents <= 3_000L -> 1
+    cents <= 4_000L -> 2
+    cents <= 5_000L -> 3
+    cents <= 10_000L -> 4
+    else -> 5
+}
 
 private data class DayAmountItem(
     val label: String,
@@ -318,6 +335,14 @@ private fun AccountingMonthContent(
                         summary = summary,
                     )
                 }
+                item(key = "expense-calendar", contentType = "calendar") {
+                    AccountingExpenseCalendar(
+                        yearMonth = yearMonth,
+                        today = today,
+                        entries = entries.orEmpty(),
+                        onOpenDay = onOpenDay,
+                    )
+                }
                 items(
                     items = displayedDays,
                     key = { day -> yearMonth.atDay(day) },
@@ -337,6 +362,117 @@ private fun AccountingMonthContent(
                             fadeOutSpec = tween(180),
                         ),
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountingExpenseCalendar(
+    yearMonth: YearMonth,
+    today: LocalDate,
+    entries: List<AccountEntryWithCategory>,
+    onOpenDay: (Int) -> Unit,
+) {
+    val expenses = remember(entries) {
+        entries.filter { it.entry.type == AccountType.EXPENSE }
+            .groupBy { it.entry.entryDate }
+            .mapValues { (_, daily) -> daily.sumOf { it.entry.amountInCents } }
+    }
+    val cells = remember(yearMonth) {
+        val days = List<LocalDate?>(yearMonth.atDay(1).dayOfWeek.value - 1) { null } +
+            (1..yearMonth.lengthOfMonth()).map(yearMonth::atDay)
+        days + List((7 - days.size % 7) % 7) { null }
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AccountingCardShape,
+        colors = CardDefaults.cardColors(containerColor = AccountingSurface),
+        border = BorderStroke(1.dp, AccountingBorder),
+        elevation = CardDefaults.cardElevation(2.dp),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("每日支出", style = MaterialTheme.typography.titleSmall, color = AccountingText)
+                Text("元", style = MaterialTheme.typography.labelSmall, color = AccountingMuted)
+            }
+            Row(Modifier.fillMaxWidth()) {
+                listOf("一", "二", "三", "四", "五", "六", "日").forEach { label ->
+                    Text(
+                        label, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelMedium, color = AccountingMuted,
+                    )
+                }
+            }
+            cells.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth()) {
+                    week.forEach { date ->
+                        val cellModifier = Modifier.weight(1f).aspectRatio(0.76f)
+                        if (date == null) {
+                            Spacer(cellModifier)
+                        } else {
+                            val future = date.isAfter(today)
+                            val cents = expenses[date] ?: 0L
+                            val level = accountingExpenseHeatLevel(cents)
+                            val foreground = when {
+                                level != null && level >= 4 -> Color.White
+                                future -> Color(0xFFC6D0D7)
+                                else -> AccountingText
+                            }
+                            val amount = java.math.BigDecimal.valueOf(cents, 2)
+                                .stripTrailingZeros().toPlainString()
+                            Column(
+                                modifier = cellModifier.padding(2.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(level?.let { AccountingExpenseHeatColors[it] } ?: Color(0xFFF3F6FA))
+                                    .then(
+                                        if (date == today) Modifier.border(1.dp, AccountingAccent, RoundedCornerShape(10.dp))
+                                        else Modifier,
+                                    )
+                                    .clickable(enabled = !future) { onOpenDay(date.dayOfMonth) }
+                                    .semantics(mergeDescendants = true) {
+                                        contentDescription = "${date.monthValue}月${date.dayOfMonth}日，支出${amount}元"
+                                    }
+                                    .padding(horizontal = 2.dp, vertical = 5.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(3.dp),
+                            ) {
+                                Text(
+                                    date.dayOfMonth.toString(), color = foreground,
+                                    style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                                )
+                                if (!future || cents > 0L) {
+                                    BasicText(
+                                        amount,
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = foreground, textAlign = TextAlign.Center,
+                                        ),
+                                        maxLines = 1,
+                                        autoSize = TextAutoSize.StepBased(minFontSize = 5.sp, maxFontSize = 10.sp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 6.dp), color = AccountingBorder)
+            Row(Modifier.fillMaxWidth()) {
+                listOf("20", "30", "40", "50", "100", "100+").forEachIndexed { index, label ->
+                    Column(
+                        Modifier.weight(1f).padding(bottom = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Box(Modifier.size(18.dp).background(AccountingExpenseHeatColors[index], RoundedCornerShape(5.dp)))
+                        Text(label, fontSize = 10.sp, color = AccountingMuted)
+                    }
                 }
             }
         }
