@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -210,13 +211,15 @@ private fun LocalDate.weekdayLabel(): String =
 private fun HomeTitle(colors: HomeColors) {
     Text(
         text = "悟已往之不谏",
-        modifier = Modifier.semantics { heading() },
+        modifier = Modifier.fillMaxWidth().semantics { heading() },
         fontFamily = FontFamily.SansSerif,
-        fontSize = 34.sp,
+        autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 34.sp, stepSize = 1.sp),
         lineHeight = 44.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.5).sp,
         color = colors.title,
+        maxLines = 1,
+        softWrap = false,
     )
 }
 
@@ -299,7 +302,7 @@ private fun FeatureCard(
                     label = feature.primaryAction.title,
                     onClick = onActionClick,
                     containerColor = palette.button,
-                    contentColor = palette.accent,
+                    contentColor = palette.onButton,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = iconSize + iconGap, end = 12.dp),
@@ -315,7 +318,7 @@ private fun FeatureCard(
                     label = feature.primaryAction.title,
                     onClick = onActionClick,
                     containerColor = palette.button,
-                    contentColor = palette.accent,
+                    contentColor = palette.onButton,
                     modifier = Modifier.width(buttonWidth),
                 )
                 OverviewChevron(colors)
@@ -403,7 +406,8 @@ private fun FeatureActionButton(
         shape = HomeButtonShape,
         color = containerColor,
         contentColor = contentColor,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+        border = BorderStroke(0.5.dp, contentColor.copy(alpha = 0.05f)),
+        shadowElevation = 0.dp,
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -414,7 +418,7 @@ private fun FeatureActionButton(
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 15.sp,
                 lineHeight = 24.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
@@ -422,46 +426,26 @@ private fun FeatureActionButton(
 
 @Composable
 private fun BackupSection(colors: HomeColors, onActionClick: (HomeActionDestination) -> Unit) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_backup),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = colors.muted,
-            )
-            Text(
-                text = "数据管理 · 本地保存",
-                modifier = Modifier.semantics { heading() },
-                color = colors.muted,
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FeatureActionButton(
-                label = "导出备份",
-                onClick = { onActionClick(HomeActionDestination.BACKUP_EXPORT) },
-                containerColor = colors.surface,
-                contentColor = colors.body,
-                modifier = Modifier.weight(1f),
-            )
-            FeatureActionButton(
-                label = "恢复数据",
-                onClick = { onActionClick(HomeActionDestination.BACKUP_RESTORE) },
-                containerColor = colors.surface,
-                contentColor = colors.body,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        FeatureActionButton(
+            label = "导出备份",
+            onClick = { onActionClick(HomeActionDestination.BACKUP_EXPORT) },
+            containerColor = colors.surface,
+            contentColor = colors.body,
+            modifier = Modifier.weight(1f),
+        )
+        FeatureActionButton(
+            label = "恢复数据",
+            onClick = { onActionClick(HomeActionDestination.BACKUP_RESTORE) },
+            containerColor = colors.surface,
+            contentColor = colors.body,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -507,6 +491,7 @@ private data class FeaturePalette(
     val glow: Color,
     val iconBackground: Color,
     val button: Color,
+    val onButton: Color,
 )
 
 private fun featurePalette(accent: FeatureAccent, darkTheme: Boolean): FeaturePalette {
@@ -529,7 +514,8 @@ private fun featurePalette(accent: FeatureAccent, darkTheme: Boolean): FeaturePa
         accent = color,
         glow = tint.copy(alpha = if (darkTheme) 0.17f else 0.25f),
         iconBackground = tint.copy(alpha = if (darkTheme) 0.16f else 0.17f).compositeOver(surface),
-        button = tint.copy(alpha = if (darkTheme) 0.22f else 0.24f).compositeOver(surface),
+        button = tint.copy(alpha = if (darkTheme) 0.24f else 0.28f).compositeOver(surface),
+        onButton = color,
     )
 }
 
