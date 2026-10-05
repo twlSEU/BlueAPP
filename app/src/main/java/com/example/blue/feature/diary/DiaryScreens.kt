@@ -17,12 +17,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -33,6 +36,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -53,6 +57,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,7 +69,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -90,17 +95,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -112,6 +121,7 @@ import com.example.blue.R
 import com.example.blue.data.local.DiaryImageStorage
 import com.example.blue.data.local.entity.DiaryEntity
 import com.example.blue.data.local.entity.DiaryImageEntity
+import com.example.blue.data.local.entity.DiaryMoodEntity
 import com.example.blue.data.local.entity.DiaryMoodIds
 import com.example.blue.data.local.entity.DiaryWithImages
 import com.example.blue.data.local.entity.selectedMoodIds
@@ -156,6 +166,15 @@ private val DiaryYearSurface = Color(0xFFFEFFFF)
 private val DiaryYearFogBlue = Color(0xFF86A5BA)
 private val DiaryYearText = Color(0xFF2D4555)
 private val DiaryYearMuted = Color(0xFF748895)
+private val DiaryMonthBackground = Color(0xFFF5F9FE)
+private val DiaryMonthSurface = Color(0xFFFEFFFF)
+private val DiaryMonthTitle = Color(0xFF0D2146)
+private val DiaryMonthMuted = Color(0xFF7C90AE)
+private val DiaryMonthTile = Color(0xFFF1F7FE)
+private val DiaryMonthBlue = Color(0xFF4B9BFF)
+private val DiaryMonthDivider = Color(0xFFE8EFF8)
+private val DiaryMonthShadow = Color(0xFF7D9FC4).copy(alpha = 0.09f)
+private val DiaryMonthShape = RoundedCornerShape(24.dp)
 private val moodIdSetSaver = listSaver<Set<Int>, Int>(
     save = { selected -> selected.toList() },
     restore = { saved -> saved.toSet() },
@@ -296,67 +315,161 @@ fun DiaryMonthScreen(
         ),
     )
     val moods by moodFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    DiaryMonthContent(
+        yearMonth = yearMonth,
+        diaries = diaries,
+        summary = summary,
+        moods = moods,
+        onOpenDiary = onOpenDiary,
+        onCreateDiary = onCreateDiary,
+        onBack = onBack,
+        onCreateDiaryForDate = onCreateDiaryForDate,
+    )
+}
+
+@Composable
+private fun DiaryMonthContent(
+    yearMonth: YearMonth,
+    diaries: List<DiaryWithImages>?,
+    summary: DiaryPeriodSummary,
+    moods: List<DiaryMoodAggregate>,
+    onOpenDiary: (String) -> Unit,
+    onCreateDiary: () -> Unit,
+    onBack: () -> Unit,
+    onCreateDiaryForDate: (LocalDate) -> Unit,
+) {
     val diariesByDate = remember(diaries) { diaries?.groupBy { it.diary.diaryDate } }
     val recordedDates = remember(diariesByDate) { diariesByDate?.keys?.sortedDescending() }
     val listState = rememberLazyListState()
     Scaffold(
-        topBar = { AppTopBar(title = "${year}年${month}月日记", onBack = onBack) },
-        floatingActionButton = {
-            AppAnimatedFloatingAction {
-                FloatingActionButton(onClick = onCreateDiary) { Text("+") }
-            }
-        },
+        containerColor = DiaryMonthBackground,
+        topBar = { DiaryMonthTopBar(yearMonth = yearMonth, onBack = onBack) },
+        floatingActionButton = { DiaryMonthFloatingAction(onClick = onCreateDiary) },
     ) { padding ->
         if (recordedDates == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(color = DiaryEditorBlue)
+                CircularProgressIndicator(color = DiaryMonthBlue)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                state = listState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                item(key = "month-summary-$year-$month", contentType = "month-summary") {
-                    DiaryMonthSummaryCard(summary = summary, moods = moods)
-                }
-                if (recordedDates.isEmpty()) {
-                    item(key = "empty-month", contentType = "empty-state") {
-                        EmptyDiaryMonth(
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(180),
-                                placementSpec = tween(220),
-                                fadeOutSpec = tween(180),
-                            ),
-                            message = "这个月还没有日记。",
-                        )
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                LazyColumn(
+                    modifier = Modifier.widthIn(max = 600.dp).fillMaxSize().align(Alignment.TopCenter),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    item(key = "month-summary-${yearMonth.year}-${yearMonth.monthValue}", contentType = "month-summary") {
+                        DiaryMonthSummaryCard(summary = summary, moods = moods)
                     }
-                } else {
-                    items(
-                        items = recordedDates,
-                        key = { it.toString() },
-                        contentType = { "diary-day-section" },
-                    ) { date ->
-                        DiaryDaySection(
-                            date = date,
-                            diaries = diariesByDate?.get(date).orEmpty(),
-                            onOpenDiary = onOpenDiary,
-                            onCreateDiary = { onCreateDiaryForDate(date) },
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(180),
-                                placementSpec = tween(220),
-                                fadeOutSpec = tween(180),
-                            ),
-                        )
+                    if (recordedDates.isEmpty()) {
+                        item(key = "empty-month", contentType = "empty-state") {
+                            EmptyDiaryMonth(
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(180),
+                                    placementSpec = tween(220),
+                                    fadeOutSpec = tween(180),
+                                ),
+                                message = "这个月还没有日记。",
+                            )
+                        }
+                    } else {
+                        items(
+                            items = recordedDates,
+                            key = { it.toString() },
+                            contentType = { "diary-day-section" },
+                        ) { date ->
+                            DiaryDaySection(
+                                date = date,
+                                diaries = diariesByDate?.get(date).orEmpty(),
+                                onOpenDiary = onOpenDiary,
+                                onCreateDiary = { onCreateDiaryForDate(date) },
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(180),
+                                    placementSpec = tween(220),
+                                    fadeOutSpec = tween(180),
+                                ),
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Preview(name = "日记 · 月份 · 设计", showBackground = true, widthDp = 390, heightDp = 790)
+@Preview(name = "日记 · 月份 · 手机", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 844)
+@Preview(name = "日记 · 月份 · 窄屏", showBackground = true, showSystemUi = true, widthDp = 320, heightDp = 800)
+@Preview(name = "日记 · 月份 · 大字体", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 1000, fontScale = 1.5f)
+@Composable
+private fun DiaryMonthScreenPreview() {
+    val diaries = listOf(
+        diaryMonthPreviewEntry(27, "00:04", "昨晚熬夜到两点半 就是不想睡\n上午完成了几道练习题，下午和朋友出去散步。晚饭吃了喜欢的菜，记下这些普通的小事，也想提醒自己明天早点休息。", setOf(DiaryMoodIds.TIRED)),
+        diaryMonthPreviewEntry(24, "21:59", "秋招\n好累", setOf(DiaryMoodIds.LOW, DiaryMoodIds.TIRED, DiaryMoodIds.ANXIOUS)),
+        diaryMonthPreviewEntry(16, "22:18", "今天有些疲惫，事情比想象中多。整理了房间，也给自己泡了一杯热茶。希望慢慢找到合适的节奏，把生活过得更从容一点。", setOf(DiaryMoodIds.LOW, DiaryMoodIds.TIRED, DiaryMoodIds.ANXIOUS)),
+        diaryMonthPreviewEntry(12, "20:36", "下午下了一场雨，出门的时候空气很清新。最近一直在准备面试，偶尔会担心自己的进度。今晚把想做的事情列下来，先从最小的一件开始。", setOf(DiaryMoodIds.LOW, DiaryMoodIds.ANXIOUS), withPhoto = false),
+        diaryMonthPreviewEntry(9, "23:10", "认真准备了一整天，还是有一点紧张。路过常去的小店，买了喜欢的面包。生活里这些小小的片刻，让今天变得没有那么难。", setOf(DiaryMoodIds.LOW, DiaryMoodIds.ANXIOUS), withPhoto = false),
+        diaryMonthPreviewEntry(5, "22:05", "今天忙到很晚，终于完成了计划中的练习。接下来还要继续复习，不过先好好睡一觉。希望醒来之后能有新的精神。", setOf(DiaryMoodIds.TIRED, DiaryMoodIds.ANXIOUS), withPhoto = false),
+        diaryMonthPreviewEntry(2, "19:42", "新的一月开始了。给自己定了几个小目标，也留一些时间休息。面对不确定的事情会焦虑，但今天还是往前走了一点。", setOf(DiaryMoodIds.ANXIOUS), withPhoto = false),
+    )
+    val summary = DiaryPeriodSummary(
+        recordDays = diaries.map { it.diary.diaryDate }.distinct().size,
+        diaryCount = diaries.size,
+        totalCharacterCount = diaries.sumOf { it.diary.content.count { character -> !character.isWhitespace() }.toLong() },
+    )
+    val moods = diaries.flatMap { it.selectedMoodIds }.groupingBy { it }.eachCount()
+        .map { (mood, count) -> DiaryMoodAggregate(mood, count) }
+
+    BlueTheme(darkTheme = false, dynamicColor = false) {
+        DiaryMonthContent(
+            yearMonth = YearMonth.of(2026, 9),
+            diaries = diaries,
+            summary = summary,
+            moods = moods,
+            onOpenDiary = {},
+            onCreateDiary = {},
+            onBack = {},
+            onCreateDiaryForDate = {},
+        )
+    }
+}
+
+@Preview(name = "日记 · 月份 · 空状态", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun DiaryMonthEmptyPreview() {
+    BlueTheme(darkTheme = false, dynamicColor = false) {
+        DiaryMonthContent(
+            yearMonth = YearMonth.of(2026, 9),
+            diaries = emptyList(),
+            summary = DiaryPeriodSummary(),
+            moods = emptyList(),
+            onOpenDiary = {},
+            onCreateDiary = {},
+            onBack = {},
+            onCreateDiaryForDate = {},
+        )
+    }
+}
+
+private fun diaryMonthPreviewEntry(
+    day: Int,
+    time: String,
+    content: String,
+    moods: Set<Int>,
+    withPhoto: Boolean = true,
+): DiaryWithImages {
+    val id = "month-preview-$day"
+    return DiaryWithImages(
+        diary = DiaryEntity(id, LocalDate.of(2026, 9, day), LocalTime.parse(time), content, createdAt = 0, updatedAt = 0),
+        images = if (withPhoto) listOf(
+            DiaryImageEntity("$id-photo", id, "diary_images/$id.jpg", sortOrder = 0, createdAt = 0),
+        ) else emptyList(),
+        moods = moods.map { DiaryMoodEntity(id, it) },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1262,87 +1375,113 @@ private fun MonthCard(
 private fun DiaryRow(diary: DiaryWithImages, onClick: () -> Unit) {
     val entry = diary.diary
     val wordCount = remember(entry.content) { entry.content.count { !it.isWhitespace() } }
+    val firstImage = remember(diary.images) { diary.images.minByOrNull { it.sortOrder } }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFCFD)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth().dropShadow(
+            shape = DiaryMonthShape,
+            shadow = Shadow(radius = 18.dp, color = DiaryMonthShadow, offset = DpOffset(0.dp, 7.dp)),
+        ),
+        shape = DiaryMonthShape,
+        colors = CardDefaults.cardColors(containerColor = DiaryMonthSurface),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 138.dp).padding(16.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text(
-                    "${entry.diaryDate.monthValue}月${entry.diaryDate.dayOfMonth}日",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF263E50),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+            val thumbnailSize = (maxWidth * 0.32f).coerceIn(80.dp, 108.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(if (maxWidth < 280.dp) 10.dp else 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        entry.diaryDate.chineseWeekday(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8997A1),
-                    )
-                    Text("·", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB4BEC5))
-                    Text("$wordCount 字", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8997A1))
-                    Text("·", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB4BEC5))
-                    Text(
-                        diaryMoodLabels(diary.selectedMoodIds),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8997A1),
+                        text = "${entry.diaryDate.monthValue}月${entry.diaryDate.dayOfMonth}日",
+                        fontSize = 26.sp,
+                        lineHeight = 34.sp,
+                        letterSpacing = 0.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DiaryMonthTitle,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                HorizontalDivider(thickness = 0.6.dp, color = Color(0xFFE1E7EB))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        entry.diaryTime.format(timeFormatter),
-                        modifier = Modifier.width(44.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF455E70),
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 26.sp, stepSize = 0.5.sp),
                     )
                     Text(
-                        text = entry.content.ifBlank { "这是一篇照片日记" },
-                        modifier = Modifier.weight(1f),
+                        text = "${entry.diaryDate.chineseWeekday()} · $wordCount 字 · ${diaryMoodLabels(diary.selectedMoodIds)}",
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        letterSpacing = 0.sp,
+                        color = DiaryMonthMuted,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF7C8B95),
                     )
+                    HorizontalDivider(thickness = 1.dp, color = DiaryMonthDivider)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            text = entry.diaryTime.format(timeFormatter),
+                            modifier = Modifier.width(46.dp),
+                            fontSize = 16.sp,
+                            lineHeight = 20.sp,
+                            letterSpacing = 0.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = DiaryMonthTitle,
+                            maxLines = 1,
+                            softWrap = false,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
+                        )
+                        Text(
+                            text = entry.content.ifBlank { "这是一篇照片日记" },
+                            modifier = Modifier.weight(1f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
+                            letterSpacing = 0.sp,
+                            color = DiaryMonthMuted,
+                        )
+                    }
                 }
-            }
-            val firstImage = diary.images.minByOrNull { it.sortOrder }
-            if (firstImage != null) {
-                DiaryFileThumbnail(
-                    file = File(LocalContext.current.filesDir, firstImage.localPath),
-                    contentDescription = null,
-                    size = 96.dp,
-                    modifier = Modifier.clip(RoundedCornerShape(18.dp)),
-                )
-            } else {
-                Box(
-                    modifier = Modifier.size(96.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFFF0F4F7)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("·", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFC1CBD2))
+                if (firstImage != null) {
+                    DiaryMonthThumbnail(
+                        file = File(LocalContext.current.filesDir, firstImage.localPath),
+                        size = thumbnailSize,
+                        previewTint = listOf(Color(0xFFF2E2D3), Color(0xFFE0E9F0), Color(0xFFF1DFEB))[entry.diaryDate.dayOfMonth % 3],
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DiaryMonthThumbnail(file: File, size: Dp, previewTint: Color) {
+    val modifier = Modifier.size(size).clip(RoundedCornerShape(18.dp))
+    if (LocalInspectionMode.current) {
+        Box(
+            modifier = modifier.background(Brush.linearGradient(listOf(previewTint, DiaryMonthTile))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_image_placeholder),
+                contentDescription = "日记照片",
+                tint = DiaryMonthMuted.copy(alpha = 0.65f),
+                modifier = Modifier.size(34.dp),
+            )
+        }
+    } else {
+        DiaryFileThumbnail(
+            file = file,
+            contentDescription = "日记照片",
+            size = size,
+            modifier = modifier.background(DiaryMonthTile),
+        )
     }
 }
 
@@ -1379,48 +1518,80 @@ private fun DiaryMonthSummaryCard(
     val totalMoodCount = moods.sumOf { it.count }
     val primaryMood = moods.maxByOrNull { it.count }
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFDFEFF)),
-        border = BorderStroke(1.dp, Color(0xFFDCE7EE)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth().dropShadow(
+            shape = DiaryMonthShape,
+            shadow = Shadow(radius = 18.dp, color = DiaryMonthShadow, offset = DpOffset(0.dp, 7.dp)),
+        ),
+        shape = DiaryMonthShape,
+        colors = CardDefaults.cardColors(containerColor = DiaryMonthSurface),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(13.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 "本月小结",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = DiaryYearText,
+                fontSize = 20.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = DiaryMonthTitle,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DiaryMonthMetric("记录天数", "${summary.recordDays} 天", Modifier.weight(1f))
-                DiaryMonthMetric("日记篇数", "${summary.diaryCount} 篇", Modifier.weight(1f))
-                DiaryMonthMetric("总字数", "${summary.totalCharacterCount} 字", Modifier.weight(1f))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DiaryMonthMetric("记录天数", "${summary.recordDays} 天", R.drawable.ic_calendar, DiaryMonthBlue, Modifier.weight(1f))
+                DiaryMonthMetric("日记篇数", "${summary.diaryCount} 篇", R.drawable.ic_home_diary, Color(0xFF687BFF), Modifier.weight(1f))
+                DiaryMonthMetric("总字数", "${summary.totalCharacterCount} 字", R.drawable.ic_home_edit, Color(0xFF35B4A3), Modifier.weight(1f))
             }
-            HorizontalDivider(color = Color(0xFFE9EFF3))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("主要心情", style = MaterialTheme.typography.labelMedium, color = DiaryYearMuted)
+            HorizontalDivider(color = DiaryMonthDivider)
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DiaryMonthMoodBadge(mood = primaryMood?.mood)
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.width(56.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "主要心情",
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = DiaryMonthMuted,
+                        maxLines = 1,
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                    )
                     Text(
                         primaryMood?.let { diaryMoodLabel(it.mood) } ?: "未记录",
-                        style = MaterialTheme.typography.titleMedium,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = DiaryYearText,
+                        color = DiaryMonthTitle,
+                        maxLines = 1,
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 18.sp, stepSize = 0.5.sp),
                     )
                 }
                 if (totalMoodCount > 0) {
-                    Text(
-                        moods.sortedByDescending { it.count }.joinToString("  ") {
-                            "${diaryMoodLabel(it.mood)} ${it.count * 100 / totalMoodCount}%"
-                        },
-                        modifier = Modifier.weight(1.7f),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = DiaryYearMuted,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    )
+                    Spacer(Modifier.width(12.dp))
+                    Box(Modifier.width(1.dp).height(24.dp).background(DiaryMonthDivider))
+                    Spacer(Modifier.width(12.dp))
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        moods.sortedByDescending { it.count }.forEach { mood ->
+                            Text(
+                                text = "${diaryMoodLabel(mood.mood)} ${mood.count * 100 / totalMoodCount}%",
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                letterSpacing = 0.sp,
+                                color = DiaryMonthMuted,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1428,12 +1599,78 @@ private fun DiaryMonthSummaryCard(
 }
 
 @Composable
-private fun DiaryMonthMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(15.dp), color = Color(0xFFF2F7FA)) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = DiaryYearMuted, maxLines = 1)
-            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = DiaryYearText, maxLines = 1)
+private fun DiaryMonthMetric(
+    label: String,
+    value: String,
+    iconRes: Int,
+    iconTint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(14.dp), color = DiaryMonthTile) {
+        Column(
+            modifier = Modifier.background(Brush.linearGradient(listOf(DiaryMonthTile, Color(0xFFF5FAFF))))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(22.dp).clip(CircleShape).background(iconTint.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(iconRes), contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
+            }
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 0.sp,
+                color = DiaryMonthMuted,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+            )
+            Text(
+                text = value,
+                fontSize = 19.sp,
+                lineHeight = 24.sp,
+                letterSpacing = 0.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DiaryMonthTitle,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 19.sp, stepSize = 0.5.sp),
+            )
         }
+    }
+}
+
+@Composable
+private fun DiaryMonthMoodBadge(mood: Int?) {
+    val positive = mood == DiaryMoodIds.PLEASANT || mood == DiaryMoodIds.ROMANTIC
+    val neutral = mood == null || mood == DiaryMoodIds.CALM || mood == DiaryMoodIds.BORED
+    val background = when {
+        positive -> Color(0xFFE1F5EF)
+        neutral -> Color(0xFFEAF2FD)
+        else -> Color(0xFFFFE7E6)
+    }
+    val ink = when {
+        positive -> Color(0xFF399C88)
+        neutral -> DiaryMonthMuted
+        else -> Color(0xFFB25C59)
+    }
+    Canvas(modifier = Modifier.size(34.dp).clip(CircleShape).background(background)) {
+        val stroke = size.width * 0.045f
+        drawLine(ink, Offset(size.width * 0.29f, size.height * 0.43f), Offset(size.width * 0.38f, size.height * 0.36f), stroke, StrokeCap.Round)
+        drawLine(ink, Offset(size.width * 0.62f, size.height * 0.36f), Offset(size.width * 0.71f, size.height * 0.43f), stroke, StrokeCap.Round)
+        val mouth = Path().apply {
+            moveTo(size.width * 0.37f, size.height * 0.65f)
+            quadraticTo(
+                size.width * 0.5f,
+                size.height * when { positive -> 0.8f; neutral -> 0.65f; else -> 0.5f },
+                size.width * 0.63f,
+                size.height * 0.65f,
+            )
+        }
+        drawPath(mouth, ink, style = Stroke(width = stroke, cap = StrokeCap.Round))
     }
 }
 
@@ -1455,12 +1692,14 @@ private fun DiaryDaySection(
         ) {
             Text(
                 "${date.monthValue}月${date.dayOfMonth}日",
-                style = MaterialTheme.typography.titleMedium,
+                fontSize = 20.sp,
+                lineHeight = 28.sp,
+                letterSpacing = 0.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = DiaryYearText,
+                color = DiaryMonthTitle,
             )
             Spacer(Modifier.width(8.dp))
-            Text(date.chineseWeekday(), style = MaterialTheme.typography.labelMedium, color = DiaryYearMuted)
+            Text(date.chineseWeekday(), fontSize = 12.sp, color = DiaryMonthMuted)
             Spacer(Modifier.weight(1f))
             if (diaries.isEmpty()) Text("未记录", style = MaterialTheme.typography.labelMedium, color = Color(0xFFA4B1BA))
         }
@@ -1560,22 +1799,67 @@ private fun EmptyDiaryMonth(modifier: Modifier = Modifier, message: String = "�
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppTopBar(
-    title: String,
-    onBack: () -> Unit,
-    actions: @Composable () -> Unit = {},
-) {
-    TopAppBar(
-        title = { Text(title) },
-        navigationIcon = { AppBackButton(onClick = onBack) },
-        actions = { actions() },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            scrolledContainerColor = MaterialTheme.colorScheme.background,
-        ),
-    )
+private fun DiaryMonthTopBar(yearMonth: YearMonth, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(DiaryMonthBackground)
+            .statusBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Surface(
+            onClick = onBack,
+            modifier = Modifier.size(44.dp).dropShadow(
+                shape = CircleShape,
+                shadow = Shadow(radius = 12.dp, color = DiaryMonthShadow, offset = DpOffset(0.dp, 5.dp)),
+            ),
+            shape = CircleShape,
+            color = Color.White,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_home_chevron_right),
+                    contentDescription = "返回",
+                    tint = DiaryMonthTitle,
+                    modifier = Modifier.size(width = 18.dp, height = 26.dp)
+                        .graphicsLayer { rotationZ = 180f },
+                )
+            }
+        }
+        Text(
+            text = "${yearMonth.year}年${yearMonth.monthValue}月日记",
+            modifier = Modifier.weight(1f),
+            fontSize = 26.sp,
+            lineHeight = 34.sp,
+            letterSpacing = 0.sp,
+            fontWeight = FontWeight.Bold,
+            color = DiaryMonthTitle,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 17.sp, maxFontSize = 26.sp, stepSize = 0.5.sp),
+        )
+    }
+}
+
+@Composable
+private fun DiaryMonthFloatingAction(onClick: () -> Unit) {
+    val button: @Composable () -> Unit = {
+        FloatingActionButton(
+            onClick = onClick,
+            modifier = Modifier.size(56.dp),
+            shape = CircleShape,
+            containerColor = DiaryMonthBlue,
+            contentColor = Color.White,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+        ) {
+            Icon(painterResource(R.drawable.ic_home_add), contentDescription = "写日记", modifier = Modifier.size(28.dp))
+        }
+    }
+    if (LocalInspectionMode.current) {
+        button()
+    } else {
+        AppAnimatedFloatingAction(content = button)
+    }
 }
 
 private sealed interface PhotoReference {
