@@ -59,7 +59,7 @@ data class HomeMetrics(
 val homeFeatures = listOf(
     HomeFeature(
         destination = AppDestination.Diary,
-        iconRes = R.drawable.ic_diary,
+        iconRes = R.drawable.ic_home_diary,
         accent = FeatureAccent.PRIMARY,
         primaryAction = HomeAction(
             title = "写日记",
@@ -69,7 +69,7 @@ val homeFeatures = listOf(
     ),
     HomeFeature(
         destination = AppDestination.Accounting,
-        iconRes = R.drawable.ic_accounting,
+        iconRes = R.drawable.ic_home_wallet,
         accent = FeatureAccent.SECONDARY,
         primaryAction = HomeAction(
             title = "记一笔",
@@ -92,7 +92,7 @@ val homeFeatures = listOf(
         iconRes = R.drawable.ic_time,
         accent = FeatureAccent.QUINARY,
         primaryAction = HomeAction(
-            title = "岁痕",
+            title = "去看看",
             symbol = "◧",
             destination = HomeActionDestination.TIME_LIFE_TRACE,
         ),
