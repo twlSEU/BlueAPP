@@ -47,7 +47,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.shadow.Shadow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -148,58 +147,55 @@ fun HomeScreen(
 
 @Composable
 private fun HomeIntroduction(date: LocalDate, colors: HomeColors) {
-    val fontScale = LocalDensity.current.fontScale
-    BoxWithConstraints(modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 18.dp)) {
-        val stackDate = maxWidth < 280.dp * fontScale + 72.dp
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (stackDate) {
-                HomeTitle(colors)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 2.dp, end = 2.dp, bottom = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            HomeTitle(colors)
+            HomeSubtitle(colors)
+        }
+        // Reserve the trailing date column even on narrow screens or with large fonts.
+        Row(
+            modifier = Modifier.widthIn(min = 64.dp, max = 88.dp).padding(top = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(46.dp)
+                    .background(colors.muted.copy(alpha = 0.55f)),
+            )
+            Column(
+                modifier = Modifier.padding(start = 13.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
                 Text(
-                    text = "${date.monthValue}月${date.dayOfMonth}日 · ${date.weekdayLabel()}",
+                    text = "${date.monthValue}月${date.dayOfMonth}日",
                     color = colors.muted,
-                    fontSize = 13.sp,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
                     lineHeight = 20.sp,
+                    letterSpacing = 0.sp,
+                    maxLines = 1,
+                    softWrap = false,
                 )
-                HomeSubtitle(colors)
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        HomeTitle(colors)
-                        HomeSubtitle(colors)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(46.dp)
-                                .background(colors.muted.copy(alpha = 0.55f)),
-                        )
-                        Column(
-                            modifier = Modifier.padding(start = 13.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(
-                                text = "${date.monthValue}月${date.dayOfMonth}日",
-                                color = colors.muted,
-                                fontSize = 13.sp,
-                                lineHeight = 20.sp,
-                            )
-                            Text(
-                                text = date.weekdayLabel(),
-                                color = colors.muted,
-                                fontSize = 12.sp,
-                                lineHeight = 18.sp,
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = date.weekdayLabel(),
+                    color = colors.muted,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                    lineHeight = 18.sp,
+                    letterSpacing = 0.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                )
             }
         }
     }
@@ -214,7 +210,7 @@ private fun HomeTitle(colors: HomeColors) {
         text = "悟已往之不谏",
         modifier = Modifier.fillMaxWidth().semantics { heading() },
         fontFamily = FontFamily.SansSerif,
-        autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 34.sp, stepSize = 1.sp),
+        autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 34.sp, stepSize = 1.sp),
         lineHeight = 44.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.5).sp,
@@ -524,6 +520,14 @@ private val HomePreviewDate = LocalDate.of(2025, 4, 16)
 private fun HomeScreenPreview() {
     BlueTheme(darkTheme = false) {
         HomeScreen(onActionClick = {}, metrics = HomePreviewMetrics, date = HomePreviewDate)
+    }
+}
+
+@Preview(name = "首页 · 窄屏极大字体长日期", showBackground = true, showSystemUi = true, widthDp = 320, heightDp = 800, fontScale = 2f, locale = "zh-rCN")
+@Composable
+private fun HomeScreenLargeDatePreview() {
+    BlueTheme(darkTheme = false) {
+        HomeScreen(onActionClick = {}, metrics = HomePreviewMetrics, date = LocalDate.of(2026, 12, 31))
     }
 }
 

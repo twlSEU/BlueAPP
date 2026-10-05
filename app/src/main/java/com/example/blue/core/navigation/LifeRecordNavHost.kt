@@ -62,6 +62,8 @@ import com.example.blue.feature.backup.BackupActionHost
 import com.example.blue.feature.common.FeatureHubScreen
 import com.example.blue.feature.common.FeatureHubTab
 import com.example.blue.feature.diary.DiaryBrowseScreen
+import com.example.blue.feature.diary.DiaryBrowseAccent
+import com.example.blue.feature.diary.DiaryBrowseTabStyle
 import com.example.blue.feature.diary.DiaryEditorScreen
 import com.example.blue.feature.diary.DiaryMonthScreen
 import com.example.blue.feature.diary.DiaryYearScreen
@@ -521,7 +523,8 @@ private val timeHubTabs = listOf(
 private fun DiaryHubScreen(container: AppContainer, navController: NavHostController) {
     FeatureHubScreen(
         tabs = diaryHubTabs,
-        accentColor = Color(0xFF4F83A9),
+        accentColor = DiaryBrowseAccent,
+        tabStyle = DiaryBrowseTabStyle,
     ) { page ->
         when (page) {
             0 -> DiaryYearScreen(

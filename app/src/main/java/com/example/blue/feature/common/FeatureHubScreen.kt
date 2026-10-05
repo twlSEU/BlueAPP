@@ -34,7 +34,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -50,6 +52,16 @@ private val HubSurface = Color(0xFFFEFFFF)
 private val HubMuted = Color(0xFF91A0A8)
 private val HubDivider = Color(0xFFE7ECEF)
 
+@Immutable
+data class FeatureHubTabStyle(
+    val backgroundColor: Color = HubSurface,
+    val selectedColor: Color? = null,
+    val unselectedColor: Color = HubMuted,
+    val fontSize: TextUnit = TextUnit.Unspecified,
+    val indicatorWidth: Dp = 28.dp,
+    val showDivider: Boolean = true,
+)
+
 /**
  * A compact, fixed header and a horizontally swipeable group of feature pages.
  * The indicator position is derived directly from the pager offset so it stays
@@ -61,10 +73,13 @@ fun FeatureHubScreen(
     tabs: List<FeatureHubTab>,
     accentColor: Color,
     modifier: Modifier = Modifier,
+    tabStyle: FeatureHubTabStyle = FeatureHubTabStyle(),
+    initialPage: Int = 0,
     pageContent: @Composable (Int) -> Unit,
 ) {
     require(tabs.isNotEmpty())
-    val pagerState = rememberPagerState(pageCount = tabs::size)
+    require(initialPage in tabs.indices)
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = tabs::size)
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -74,7 +89,7 @@ fun FeatureHubScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(HubSurface)
+                    .background(tabStyle.backgroundColor)
                     .statusBarsPadding(),
             ) {
                 FeatureHubTabBar(
@@ -82,6 +97,7 @@ fun FeatureHubScreen(
                     selectedPage = pagerState.currentPage,
                     pagerState = pagerState,
                     accentColor = accentColor,
+                    tabStyle = tabStyle,
                     onTabClick = { page ->
                         if (page != pagerState.currentPage && !pagerState.isScrollInProgress) {
                             scope.launch {
@@ -120,16 +136,17 @@ private fun FeatureHubTabBar(
     selectedPage: Int,
     pagerState: PagerState,
     accentColor: Color,
+    tabStyle: FeatureHubTabStyle,
     onTabClick: (Int) -> Unit,
 ) {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp)
-            .background(HubSurface),
+            .background(tabStyle.backgroundColor),
     ) {
         val itemWidth = maxWidth / tabs.size
-        val indicatorWidth = 28.dp.coerceAtMost(itemWidth - 16.dp)
+        val indicatorWidth = tabStyle.indicatorWidth.coerceAtMost(itemWidth - 16.dp)
         val density = LocalDensity.current
         val itemWidthPx = with(density) { itemWidth.toPx() }
         val indicatorInsetPx = with(density) { ((itemWidth - indicatorWidth) / 2).toPx() }
@@ -147,8 +164,11 @@ private fun FeatureHubTabBar(
                     Text(
                         text = tab.label,
                         style = MaterialTheme.typography.labelLarge,
+                        fontSize = tabStyle.fontSize,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selected) accentColor else HubMuted,
+                        color = if (selected) tabStyle.selectedColor ?: accentColor else tabStyle.unselectedColor,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
@@ -172,12 +192,14 @@ private fun FeatureHubTabBar(
                 .clip(RoundedCornerShape(2.dp))
                 .background(accentColor),
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(HubDivider),
-        )
+        if (tabStyle.showDivider) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(HubDivider),
+            )
+        }
     }
 }

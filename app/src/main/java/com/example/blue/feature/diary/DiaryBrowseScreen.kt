@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -57,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -64,15 +67,25 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
@@ -93,6 +106,7 @@ import com.example.blue.data.repository.DiaryBrowseFilter
 import com.example.blue.data.repository.DiaryBrowseOrder
 import com.example.blue.data.repository.DiaryRepository
 import com.example.blue.feature.common.AppBackButton
+import com.example.blue.feature.common.FeatureHubTabStyle
 import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import java.time.LocalDate
 import java.time.YearMonth
@@ -110,15 +124,26 @@ private const val DIARY_BROWSE_PAGE_SIZE = 20
 private const val DIARY_BROWSE_MAX_ITEMS = 80
 private enum class DiaryBrowseContent { LOADING, EMPTY, ERROR, LIST }
 private val browseDateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日")
-private val BrowseBackground = Color(0xFFF6F8FC)
-private val BrowseSurface = Color(0xFFFEFFFF)
-private val BrowseTitle = Color(0xFF2D4555)
-private val BrowseBody = Color(0xFF647A88)
-private val BrowseMuted = Color(0xFF8798A6)
-private val BrowseBlue = Color(0xFF4F88C6)
-private val BrowseBlueSoft = Color(0xFFEEF6FF)
-private val BrowseControl = Color(0xFFF5F7F9)
-private val BrowseBorder = Color(0xFFE2EAF0)
+private val browseTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val BrowseBackground = Color(0xFFF5F8FD)
+private val BrowseSurface = Color(0xFFFCFDFF)
+private val BrowseTitle = Color(0xFF172338)
+private val BrowseBody = Color(0xFF54657E)
+private val BrowseMuted = Color(0xFF7F90AB)
+internal val DiaryBrowseAccent = Color(0xFF2F86F6)
+private val BrowseBlue = DiaryBrowseAccent
+private val BrowseBlueSoft = Color(0xFFEAF4FF)
+private val BrowseControl = Color(0xFFF0F5FB)
+private val BrowseBorder = Color(0xFFE7EEF8)
+private val BrowseCardShape = RoundedCornerShape(24.dp)
+internal val DiaryBrowseTabStyle = FeatureHubTabStyle(
+    backgroundColor = BrowseBackground,
+    selectedColor = BrowseTitle,
+    unselectedColor = BrowseMuted,
+    fontSize = 16.sp,
+    indicatorWidth = 36.dp,
+    showDivider = false,
+)
 
 data class DiaryBrowseUiState(
     val items: List<DiaryWithImages> = emptyList(),
@@ -478,7 +503,7 @@ fun DiaryBrowseScreen(
                 DiaryBrowseContent.LIST -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, top = 10.dp, end = 16.dp, bottom = 30.dp),
+                contentPadding = PaddingValues(start = 14.dp, top = 6.dp, end = 14.dp, bottom = 30.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item(key = "browse-controls", contentType = "browse-controls") {
@@ -556,7 +581,7 @@ fun DiaryBrowseScreen(
 }
 
 @Composable
-private fun DiaryBrowseControls(
+internal fun DiaryBrowseControls(
     state: DiaryBrowseUiState,
     onDateChange: (Int?, Int?, Int?) -> Unit,
     onOrderChange: (DiaryBrowseOrder) -> Unit,
@@ -571,14 +596,17 @@ private fun DiaryBrowseControls(
     }
     val dayOptions = remember(daysInMonth) { (1..daysInMonth).map(Int::toString) }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth().dropShadow(
+            shape = BrowseCardShape,
+            shadow = Shadow(radius = 18.dp, color = Color(0xFF7497C5).copy(alpha = 0.09f), offset = DpOffset(0.dp, 6.dp)),
+        ),
+        shape = BrowseCardShape,
         color = BrowseSurface,
-        border = BorderStroke(1.dp, BrowseBorder),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.85f)),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 15.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -586,15 +614,17 @@ private fun DiaryBrowseControls(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Surface(
-                    modifier = Modifier.size(38.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = BrowseBlueSoft,
+                    modifier = Modifier.size(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFF6FAFF),
+                    border = BorderStroke(1.dp, Color.White),
+                    shadowElevation = 2.dp,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             painter = painterResource(R.drawable.ic_calendar),
                             contentDescription = null,
-                            modifier = Modifier.size(19.dp),
+                            modifier = Modifier.size(23.dp),
                             tint = BrowseBlue,
                         )
                     }
@@ -625,7 +655,7 @@ private fun DiaryBrowseControls(
             HorizontalDivider(color = BrowseBorder.copy(alpha = 0.72f))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 BrowseOrderOption(
@@ -641,13 +671,18 @@ private fun DiaryBrowseControls(
                     onClick = { onOrderChange(DiaryBrowseOrder.ASCENDING) },
                 )
                 Surface(
+                    modifier = Modifier.widthIn(max = 88.dp),
                     shape = CircleShape,
                     color = BrowseControl,
                 ) {
                     Text(
                         "共 ${state.totalCount} 篇",
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.labelSmall,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                        lineHeight = 18.sp,
+                        letterSpacing = 0.sp,
+                        maxLines = 1,
+                        softWrap = false,
                         fontWeight = FontWeight.Medium,
                         color = BrowseMuted,
                     )
@@ -667,41 +702,47 @@ private fun RowScope.BrowseDateDropdown(
     onSelect: (String?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var anchorHeightPx by remember { mutableIntStateOf(0) }
     val selected = value != "全部"
     Box(modifier = Modifier.weight(1f)) {
         Surface(
-            onClick = { if (enabled) expanded = true },
-            modifier = Modifier.fillMaxWidth().height(54.dp),
+            onClick = { expanded = true },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).onSizeChanged { anchorHeightPx = it.height },
             shape = RoundedCornerShape(14.dp),
             color = if (selected) BrowseBlueSoft.copy(alpha = 0.72f) else BrowseControl,
             border = if (selected) BorderStroke(1.dp, BrowseBlue.copy(alpha = 0.28f)) else null,
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     label,
-                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    letterSpacing = 0.sp,
                     color = if (selected) BrowseBlue else BrowseMuted,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         value,
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
+                        lineHeight = 22.sp,
+                        letterSpacing = 0.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = when {
-                            !enabled -> BrowseMuted.copy(alpha = 0.65f)
                             selected -> BrowseBlue
                             else -> BrowseTitle
                         },
                         maxLines = 1,
+                        softWrap = false,
                     )
                     Icon(
                         painter = painterResource(R.drawable.ic_arrow_down),
                         contentDescription = "选择$label",
-                        modifier = Modifier.size(15.dp),
+                        modifier = Modifier.size(13.dp),
                         tint = when {
                             !enabled -> BrowseMuted.copy(alpha = 0.45f)
                             selected -> BrowseBlue
@@ -714,9 +755,7 @@ private fun RowScope.BrowseDateDropdown(
         if (expanded && lazyOptions) {
             Popup(
                 alignment = Alignment.TopStart,
-                offset = with(LocalDensity.current) {
-                    IntOffset(0, 54.dp.roundToPx())
-                },
+                offset = IntOffset(0, anchorHeightPx),
                 onDismissRequest = { expanded = false },
                 properties = PopupProperties(focusable = true),
             ) {
@@ -811,16 +850,17 @@ private fun BrowseOrderOption(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.height(38.dp),
+        modifier = modifier.heightIn(min = 38.dp),
         shape = CircleShape,
-        color = if (selected) BrowseBlueSoft else BrowseControl,
+        color = if (selected) Color(0xFFE2F1FF) else Color(0xFFF7FAFF),
         border = BorderStroke(
             width = 1.dp,
             color = if (selected) BrowseBlue.copy(alpha = 0.72f) else Color.Transparent,
         ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -837,19 +877,24 @@ private fun BrowseOrderOption(
                     Box(Modifier.size(5.dp).background(Color.White, CircleShape))
                 }
             }
-            Spacer(Modifier.width(7.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 label,
-                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f, fill = false),
+                autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+                lineHeight = 20.sp,
+                letterSpacing = 0.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 color = if (selected) BrowseBlue else BrowseTitle,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
 }
 
 @Composable
-private fun DiaryBrowseCard(
+internal fun DiaryBrowseCard(
     diary: DiaryWithImages,
     imageStorage: DiaryImageStorage,
     onOpenDiary: () -> Unit,
@@ -859,97 +904,142 @@ private fun DiaryBrowseCard(
     val entry = diary.diary
     val dateLabel = remember(entry.diaryDate) { entry.diaryDate.format(browseDateFormatter) }
     val timeLabel = remember(entry.diaryDate, entry.diaryTime) {
-        "${entry.diaryTime} · ${entry.diaryDate.chineseWeekdayForDiary()}"
+        "${entry.diaryTime.format(browseTimeFormatter)} · ${entry.diaryDate.chineseWeekdayForDiary()}"
     }
     val characterCount = remember(entry.content) { entry.content.countDiaryCharacters() }
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        modifier = modifier.fillMaxWidth().dropShadow(
+            shape = BrowseCardShape,
+            shadow = Shadow(radius = 20.dp, color = Color(0xFF7497C5).copy(alpha = 0.08f), offset = DpOffset(0.dp, 6.dp)),
+        ),
+        shape = BrowseCardShape,
         colors = CardDefaults.cardColors(containerColor = BrowseSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.85f)),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 17.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDiary).padding(horizontal = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDiary).padding(horizontal = 20.dp),
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        dateLabel,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = BrowseTitle,
-                    )
-                    Text(
-                        timeLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = BrowseMuted,
-                    )
-                }
-                val selectedMoods = diary.selectedMoodIds
-                if (selectedMoods.isNotEmpty()) {
-                    Surface(
-                        modifier = Modifier.widthIn(max = 156.dp),
-                        shape = CircleShape,
-                        color = BrowseBlue.copy(alpha = 0.10f),
-                    ) {
+                val moodWidth = maxWidth * 0.38f
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            diaryMoodLabels(selectedMoods),
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = BrowseBlue,
+                            dateLabel,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 26.sp, stepSize = 0.5.sp),
+                            lineHeight = 34.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp,
+                            color = BrowseTitle,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                        Text(
+                            timeLabel,
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp,
+                            letterSpacing = 0.sp,
+                            color = BrowseMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    val selectedMoods = diary.selectedMoodIds
+                    if (selectedMoods.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier.widthIn(max = moodWidth),
+                            shape = CircleShape,
+                            color = BrowseBlueSoft,
+                        ) {
+                            Text(
+                                diaryMoodLabels(selectedMoods),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+                                lineHeight = 18.sp,
+                                letterSpacing = 0.sp,
+                                color = BrowseBlue,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = Color(0xFFE8EEF2))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = BrowseBorder)
             Text(
                 text = entry.content.ifBlank { "这是一篇照片日记" },
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDiary).padding(horizontal = 18.dp),
-                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDiary).padding(horizontal = 20.dp),
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                letterSpacing = 0.sp,
                 color = BrowseBody,
             )
             if (diary.images.isNotEmpty()) {
                 val sortedImages = remember(diary.images) { diary.images.sortedBy { it.sortOrder } }
                 val paths = remember(sortedImages) { sortedImages.map { it.localPath } }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 ) {
-                    itemsIndexed(
-                        items = sortedImages,
-                        key = { _, image -> image.id },
-                        contentType = { _, _ -> "diary-thumbnail" },
-                    ) { index, image ->
-                        DiaryThumbnail(
-                            localPath = image.localPath,
-                            imageStorage = imageStorage,
-                            contentDescription = "${entry.diaryDate} 的日记照片",
-                            onClick = { onPreview(paths, index) },
-                        )
+                    val density = LocalDensity.current
+                    val gap = 8.dp
+                    val gapPx = with(density) { gap.roundToPx() }
+                    val photoSpacePx = (constraints.maxWidth - 2 * gapPx).coerceAtLeast(3)
+                    val photoWidthPx = photoSpacePx / 3
+                    val remainderPx = photoSpacePx % 3
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(gap),
+                    ) {
+                        itemsIndexed(
+                            items = sortedImages,
+                            key = { _, image -> image.id },
+                            contentType = { _, _ -> "diary-thumbnail" },
+                        ) { index, image ->
+                            // Distribute rounding pixels so three complete photos fill the viewport.
+                            val widthPx = photoWidthPx + if (index % 3 < remainderPx) 1 else 0
+                            DiaryThumbnail(
+                                localPath = image.localPath,
+                                imageStorage = imageStorage,
+                                size = with(density) { widthPx.toDp() },
+                                photoNumber = index + 1,
+                                contentDescription = "${entry.diaryDate} 的第 ${index + 1} 张日记照片",
+                                onClick = { onPreview(paths, index) },
+                            )
+                        }
                     }
                 }
             }
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     "$characterCount 字",
-                    style = MaterialTheme.typography.labelMedium,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp,
+                    letterSpacing = 0.sp,
                     color = BrowseMuted,
                 )
-                Text(
-                    "点击继续编辑 ›",
-                    modifier = Modifier.clickable(onClick = onOpenDiary),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = BrowseBlue,
-                )
+                Row(
+                    modifier = Modifier.heightIn(min = 32.dp).clickable(role = Role.Button, onClick = onOpenDiary),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("点击继续编辑", fontSize = 13.sp, lineHeight = 20.sp, color = BrowseBlue, fontWeight = FontWeight.Medium)
+                    Icon(
+                        painter = painterResource(R.drawable.ic_home_chevron_right),
+                        contentDescription = null,
+                        modifier = Modifier.size(width = 10.dp, height = 16.dp),
+                        tint = BrowseBlue,
+                    )
+                }
             }
         }
     }
@@ -959,12 +1049,31 @@ private fun DiaryBrowseCard(
 private fun DiaryThumbnail(
     localPath: String,
     imageStorage: DiaryImageStorage,
+    size: Dp,
+    photoNumber: Int,
     contentDescription: String,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val sizePx = with(LocalDensity.current) { 108.dp.roundToPx() }
-    val request = remember(localPath, sizePx) {
+    val thumbnailModifier = Modifier.size(size).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick)
+    if (LocalInspectionMode.current) {
+        val tint = listOf(Color(0xFFD8E9FA), Color(0xFFEDE2D5), Color(0xFFD5EAE6))[(photoNumber - 1) % 3]
+        Box(
+            modifier = thumbnailModifier.background(Brush.linearGradient(listOf(tint, BrowseBlueSoft))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_image_placeholder), contentDescription, tint = BrowseMuted, modifier = Modifier.size(32.dp))
+            Text(
+                "$photoNumber",
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                color = BrowseBody,
+                fontSize = 12.sp,
+            )
+        }
+        return
+    }
+    val sizePx = with(LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
+    val request = remember(context, imageStorage, localPath, sizePx) {
         ImageRequest.Builder(context)
             .data(imageStorage.fileFor(localPath))
             .size(sizePx, sizePx)
@@ -975,7 +1084,9 @@ private fun DiaryThumbnail(
     AsyncImage(
         model = request,
         contentDescription = contentDescription,
-        modifier = Modifier.size(108.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick),
+        modifier = thumbnailModifier.background(BrowseControl),
+        placeholder = painterResource(R.drawable.ic_image_placeholder),
+        error = painterResource(R.drawable.ic_image_placeholder),
         contentScale = ContentScale.Crop,
     )
 }
@@ -1141,4 +1252,13 @@ private fun LocalDate.chineseWeekdayForDiary(): String = when (dayOfWeek.value) 
     5 -> "星期五"
     6 -> "星期六"
     else -> "星期日"
+}
+
+@Preview(name = "日记浏览 · 设计稿", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 844, locale = "zh-rCN")
+@Preview(name = "日记浏览 · 手机", showBackground = true, showSystemUi = true, widthDp = 360, heightDp = 800, fontScale = 1.15f, locale = "zh-rCN")
+@Preview(name = "日记浏览 · 窄屏", showBackground = true, showSystemUi = true, widthDp = 320, heightDp = 800, locale = "zh-rCN")
+@Preview(name = "日记浏览 · 大字体", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 1000, fontScale = 1.5f, locale = "zh-rCN")
+@Composable
+private fun DiaryBrowseScreenPreview() {
+    DiaryBrowsePreviewContent()
 }
