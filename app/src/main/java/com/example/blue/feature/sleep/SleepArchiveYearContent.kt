@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,12 +24,15 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -50,7 +54,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -60,14 +66,19 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.blue.R
 import com.example.blue.core.util.SleepDateRules
 import com.example.blue.data.local.entity.SleepRecordEntity
 import com.example.blue.data.local.entity.SleepSource
+import com.example.blue.feature.common.FeatureHubScreen
+import com.example.blue.feature.common.FeatureHubTab
+import com.example.blue.feature.common.FeatureHubTabStyle
 import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.ui.theme.BlueTheme
 import java.time.LocalDate
@@ -75,7 +86,7 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
-private val YearBackground = Color(0xFFF6F8FC)
+private val YearBackground = Color(0xFFF5F8FD)
 private val YearText = Color(0xFF0B1633)
 private val YearMuted = Color(0xFF7485A6)
 private val YearDataLabel = Color(0xFF8493B2)
@@ -83,7 +94,7 @@ private val YearAccent = Color(0xFF7065D8)
 private val YearArrow = Color(0xFF97A5BE)
 private val YearTrack = Color(0xFFEDF1F8)
 private val YearShadow = Color(0xFF536787)
-private val YearSelectorShape = RoundedCornerShape(32.dp)
+private val YearSelectorShape = RoundedCornerShape(percent = 50)
 private val YearMonthShape = RoundedCornerShape(28.dp)
 private val YearProgressShape = RoundedCornerShape(4.dp)
 private val YearProgressBrush = Brush.horizontalGradient(
@@ -93,6 +104,20 @@ private val CurrentMonthBrush = Brush.linearGradient(
     listOf(Color(0xFFF5F3FF), Color(0xFFF9FAFF), Color.White),
 )
 private val yearTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+internal val SleepArchiveAccent = Color(0xFF15355C)
+internal val SleepArchiveTabStyle = FeatureHubTabStyle(
+    backgroundColor = YearBackground,
+    selectedColor = SleepArchiveAccent,
+    unselectedColor = Color(0xFF8A9DB8),
+    fontSize = 16.sp,
+    indicatorWidth = 26.dp,
+    showDivider = false,
+)
+internal val SleepHubTabs = listOf(
+    FeatureHubTab(key = "archive", label = "年月"),
+    FeatureHubTab(key = "summary", label = "总结"),
+)
 
 /** The archive UI takes plain data so previews never need Room or a live repository. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,14 +164,13 @@ internal fun SleepArchiveYearContent(
         },
         contentWindowInsets = appScaffoldContentWindowInsets(showTopBar),
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(key = "year") {
-                // 24dp separates the selector from the month cards; cards use 16dp.
-                Box(Modifier.padding(bottom = 8.dp)) {
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxSize().align(Alignment.TopCenter),
+                contentPadding = PaddingValues(start = 14.dp, top = 16.dp, end = 14.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item(key = "year", contentType = "year-selector") {
                     SleepArchiveYearSelector(
                         year = year,
                         canMoveForward = year < today.year,
@@ -154,28 +178,28 @@ internal fun SleepArchiveYearContent(
                         onNext = onNextYear,
                     )
                 }
-            }
-            if (records == null) {
-                item(key = "loading") {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(128.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = YearAccent,
-                            strokeWidth = 2.dp,
+                if (records == null) {
+                    item(key = "loading") {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(128.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = YearAccent,
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    }
+                } else {
+                    items(months, key = { month -> "$year-$month" }) { month ->
+                        SleepArchiveMonthCard(
+                            yearMonth = YearMonth.of(year, month),
+                            records = grouped[month].orEmpty(),
+                            isCurrentMonth = year == today.year && month == today.monthValue,
+                            onClick = { onOpenMonth(year, month) },
                         )
                     }
-                }
-            } else {
-                items(months, key = { month -> "$year-$month" }) { month ->
-                    SleepArchiveMonthCard(
-                        yearMonth = YearMonth.of(year, month),
-                        records = grouped[month].orEmpty(),
-                        isCurrentMonth = year == today.year && month == today.monthValue,
-                        onClick = { onOpenMonth(year, month) },
-                    )
                 }
             }
         }
@@ -192,31 +216,38 @@ private fun SleepArchiveYearSelector(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 88.dp)
             .dropShadow(
                 shape = YearSelectorShape,
                 shadow = Shadow(
-                    radius = 16.dp,
-                    color = YearShadow.copy(alpha = 0.04f),
-                    offset = DpOffset(0.dp, 4.dp),
+                    radius = 18.dp,
+                    color = Color(0xFF7394BE).copy(alpha = 0.08f),
+                    offset = DpOffset(0.dp, 6.dp),
                 ),
             ),
         shape = YearSelectorShape,
-        color = Color.White,
+        color = Color(0xFFFBFDFF),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.75f)),
     ) {
-        Box(Modifier.padding(horizontal = 16.dp, vertical = 20.dp)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconButton(
                 onClick = onPrevious,
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
                     .size(48.dp)
                     .semantics { contentDescription = "上一年" },
             ) {
-                ArchiveChevron(color = YearArrow, pointsLeft = true)
+                Icon(
+                    painter = painterResource(R.drawable.ic_home_chevron_right),
+                    contentDescription = null,
+                    tint = SleepArchiveAccent,
+                    modifier = Modifier.size(width = 12.dp, height = 18.dp).graphicsLayer { rotationZ = 180f },
+                )
             }
             AnimatedContent(
                 targetState = year,
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier.weight(1f),
                 transitionSpec = {
                     val direction = if (targetState > initialState) 1 else -1
                     (fadeIn(tween(200)) + slideInHorizontally(tween(220)) { direction * it / 5 })
@@ -228,23 +259,32 @@ private fun SleepArchiveYearSelector(
             ) { selectedYear ->
                 Text(
                     text = "${selectedYear}年",
+                    modifier = Modifier.fillMaxWidth(),
                     fontFamily = FontFamily.SansSerif,
-                    fontSize = 26.sp,
-                    lineHeight = 32.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Medium,
                     letterSpacing = 0.sp,
-                    color = YearText,
+                    color = SleepArchiveAccent,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
                 )
             }
             IconButton(
                 onClick = onNext,
                 enabled = canMoveForward,
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
                     .size(48.dp)
                     .semantics { contentDescription = "下一年" },
             ) {
-                ArchiveChevron(color = if (canMoveForward) YearArrow else Color(0xFFD4DCEB))
+                Icon(
+                    painter = painterResource(R.drawable.ic_home_chevron_right),
+                    contentDescription = null,
+                    tint = if (canMoveForward) SleepArchiveAccent else Color(0xFF8A9DB8).copy(alpha = 0.45f),
+                    modifier = Modifier.size(width = 12.dp, height = 18.dp),
+                )
             }
         }
     }
@@ -391,15 +431,16 @@ private fun ArchiveChevron(color: Color, pointsLeft: Boolean = false) {
     }
 }
 
-@Preview(name = "年月 · 当前月与历史记录", widthDp = 390, heightDp = 844, showBackground = true)
-@Preview(name = "年月 · 窄屏", widthDp = 320, heightDp = 740, showBackground = true)
-@Preview(name = "年月 · 大字体", widthDp = 390, heightDp = 844, fontScale = 1.3f, showBackground = true)
+@Preview(name = "睡眠 · 年月 · 设计", group = "睡眠顶部", widthDp = 390, heightDp = 780, showBackground = true)
+@Preview(name = "睡眠 · 年月 · 手机", group = "睡眠顶部", widthDp = 390, heightDp = 844, showBackground = true, showSystemUi = true)
+@Preview(name = "睡眠 · 年月 · 窄屏", group = "睡眠顶部", widthDp = 320, heightDp = 800, showBackground = true, showSystemUi = true)
+@Preview(name = "睡眠 · 年月 · 大字体", group = "睡眠顶部", widthDp = 390, heightDp = 1000, fontScale = 1.5f, showBackground = true, showSystemUi = true)
 @Composable
 private fun SleepArchiveYearPreview() {
     SleepArchivePreviewContent(empty = false)
 }
 
-@Preview(name = "年月 · 无睡眠记录", widthDp = 390, heightDp = 844, showBackground = true)
+@Preview(name = "睡眠 · 年月 · 无记录", group = "睡眠顶部", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable
 private fun SleepArchiveYearEmptyPreview() {
     SleepArchivePreviewContent(empty = true)
@@ -436,15 +477,56 @@ private fun SleepArchivePreviewContent(empty: Boolean) {
     }
     val yearRecords = remember(records, year) { records.filter { it.recordDate.year == year } }
     BlueTheme(darkTheme = false) {
-        SleepArchiveYearContent(
-            year = year,
-            today = today,
-            records = yearRecords,
-            onPreviousYear = { year-- },
-            onNextYear = { if (year < today.year) year++ },
-            onOpenMonth = { _, _ -> },
-            onBack = {},
-            showTopBar = false,
-        )
+        FeatureHubScreen(
+            tabs = SleepHubTabs,
+            accentColor = SleepArchiveAccent,
+            tabStyle = SleepArchiveTabStyle,
+        ) { page ->
+            if (page == 0) {
+                SleepArchiveYearContent(
+                    year = year,
+                    today = today,
+                    records = yearRecords,
+                    onPreviousYear = { year-- },
+                    onNextYear = { if (year < today.year) year++ },
+                    onOpenMonth = { _, _ -> },
+                    onBack = {},
+                    showTopBar = false,
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(YearBackground))
+            }
+        }
+    }
+}
+
+@Preview(name = "睡眠 · 顶部 · 总结选中", group = "睡眠顶部", widthDp = 390, heightDp = 72, showBackground = true)
+@Composable
+private fun SleepSummaryTabPreview() {
+    BlueTheme(darkTheme = false) {
+        FeatureHubScreen(
+            tabs = SleepHubTabs,
+            accentColor = SleepArchiveAccent,
+            tabStyle = SleepArchiveTabStyle,
+            initialPage = 1,
+        ) {
+            Box(Modifier.fillMaxSize().background(YearBackground))
+        }
+    }
+}
+
+@Preview(name = "睡眠 · 年份卡片 · 历史年份", group = "睡眠顶部", widthDp = 390, heightDp = 90, showBackground = true)
+@Composable
+private fun SleepArchiveYearSelectorPreview() {
+    var year by rememberSaveable { mutableIntStateOf(2025) }
+    BlueTheme(darkTheme = false) {
+        Box(Modifier.fillMaxSize().background(YearBackground).padding(horizontal = 14.dp, vertical = 16.dp)) {
+            SleepArchiveYearSelector(
+                year = year,
+                canMoveForward = year < 2026,
+                onPrevious = { year-- },
+                onNext = { if (year < 2026) year++ },
+            )
+        }
     }
 }

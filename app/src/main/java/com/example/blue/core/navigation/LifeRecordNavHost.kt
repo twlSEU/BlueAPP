@@ -74,9 +74,12 @@ import com.example.blue.feature.home.HomeScreen
 import com.example.blue.feature.home.HomeActionDestination
 import com.example.blue.feature.home.HomeMetrics
 import com.example.blue.data.repository.HomeMetricsSnapshot
+import com.example.blue.feature.sleep.SleepArchiveAccent
 import com.example.blue.feature.sleep.SleepArchiveMonthScreen
+import com.example.blue.feature.sleep.SleepArchiveTabStyle
 import com.example.blue.feature.sleep.SleepArchiveYearScreen
 import com.example.blue.feature.sleep.SleepEditorScreen
+import com.example.blue.feature.sleep.SleepHubTabs
 import com.example.blue.feature.sleep.SleepSummaryScreen
 import com.example.blue.feature.sleep.SleepTimeEstimator
 import com.example.blue.feature.time.LifeTraceScreen
@@ -512,11 +515,6 @@ private val accountingHubTabs = listOf(
     FeatureHubTab(key = "summary", label = "总结"),
 )
 
-private val sleepHubTabs = listOf(
-    FeatureHubTab(key = "archive", label = "年月"),
-    FeatureHubTab(key = "summary", label = "总结"),
-)
-
 private val timeHubTabs = listOf(
     FeatureHubTab(key = "life-trace", label = "岁痕"),
     FeatureHubTab(key = "events", label = "去来"),
@@ -586,8 +584,9 @@ private fun AccountingHubScreen(container: AppContainer, navController: NavHostC
 @Composable
 private fun SleepHubScreen(container: AppContainer, navController: NavHostController) {
     FeatureHubScreen(
-        tabs = sleepHubTabs,
-        accentColor = Color(0xFF706AAA),
+        tabs = SleepHubTabs,
+        accentColor = SleepArchiveAccent,
+        tabStyle = SleepArchiveTabStyle,
     ) { page ->
         when (page) {
             0 -> SleepArchiveYearScreen(
