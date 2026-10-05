@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -75,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -82,6 +84,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -91,6 +94,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -109,6 +113,9 @@ import com.example.blue.feature.common.AppDatePickerDialog
 import com.example.blue.feature.common.AppDateTimeSelectorRow
 import com.example.blue.feature.common.AppTimePickerDialog
 import com.example.blue.feature.common.DeleteConfirmationDialog
+import com.example.blue.feature.common.FeatureHubScreen
+import com.example.blue.feature.common.FeatureHubTab
+import com.example.blue.feature.common.FeatureHubTabStyle
 import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.model.AccountSummary
 import com.example.blue.model.AccountType
@@ -145,6 +152,27 @@ private val AccountingExpenseHeatColors = listOf(
     Color(0xFFF3C28D), Color(0xFFD98070), Color(0xFFB84D60),
 )
 
+internal val AccountingArchiveAccent = Color(0xFF15355C)
+private val ArchiveBackground = Color(0xFFF5F8FD)
+private val ArchiveSurface = Color(0xFFFBFDFF)
+private val ArchiveMuted = Color(0xFF8A9DB8)
+private val ArchiveIncome = Color(0xFF00AA91)
+private val ArchiveExpense = Color(0xFFFF5C73)
+private val ArchiveShadow = Color(0xFF7394BE).copy(alpha = 0.08f)
+private val ArchiveMonthAccents = listOf(
+    Color(0xFFB7DDFF), Color(0xFFC8B4FF), Color(0xFFA5E7DA), Color(0xFFFFD3A2),
+    Color(0xFFFFC2C8), Color(0xFFFFD29A), Color(0xFFC8B1FF), Color(0xFFA3E8DA),
+    Color(0xFFB4D4FF), Color(0xFFB6DFFF), Color(0xFFAFDFDF), Color(0xFFD4C1FF),
+)
+internal val AccountingArchiveTabStyle = FeatureHubTabStyle(
+    backgroundColor = ArchiveBackground,
+    selectedColor = AccountingArchiveAccent,
+    unselectedColor = ArchiveMuted,
+    fontSize = 16.sp,
+    indicatorWidth = 26.dp,
+    showDivider = false,
+)
+
 internal fun accountingExpenseHeatLevel(cents: Long): Int? = when {
     cents <= 0L -> null
     cents <= 2_000L -> 0
@@ -175,48 +203,75 @@ fun AccountingYearScreen(
     val monthlyAggregates by remember(repository, year) {
         repository.observeMonthlyAggregates(year)
     }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val grouped = remember(monthlyAggregates) { monthlyAggregates.associateBy { it.month } }
     val displayedMonths = remember(year, today) { accountingMonthsForYear(year, today) }
 
+    AccountingYearContent(
+        year = year,
+        currentYear = currentYear,
+        displayedMonths = displayedMonths,
+        monthlyAggregates = monthlyAggregates,
+        onYearChange = { year = it },
+        onOpenMonth = onOpenMonth,
+        onBack = onBack,
+        showTopBar = showTopBar,
+    )
+}
+
+@Composable
+private fun AccountingYearContent(
+    year: Int,
+    currentYear: Int,
+    displayedMonths: List<Int>,
+    monthlyAggregates: List<AccountMonthlyAggregate>,
+    onYearChange: (Int) -> Unit,
+    onOpenMonth: (Int, Int) -> Unit,
+    onBack: () -> Unit,
+    showTopBar: Boolean,
+) {
+    val grouped = remember(monthlyAggregates) { monthlyAggregates.associateBy { it.month } }
     Scaffold(
-        containerColor = AccountingBackground,
+        containerColor = ArchiveBackground,
         topBar = { if (showTopBar) AccountTopBar(title = "按年月查看", onBack = onBack) },
         contentWindowInsets = appScaffoldContentWindowInsets(showTopBar),
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                AccountYearSelector(
-                    year = year,
-                    canMoveForward = year < currentYear,
-                    onYearChange = { year = it },
-                )
-            }
-            items(
-                items = displayedMonths,
-                key = { month -> "$year-$month" },
-            ) { month ->
-                val monthAggregate = grouped[month]
-                val summary = remember(monthAggregate) {
-                    AccountSummary(
-                        incomeInCents = monthAggregate?.incomeInCents ?: 0L,
-                        expenseInCents = monthAggregate?.expenseInCents ?: 0L,
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxSize().align(Alignment.TopCenter),
+                contentPadding = PaddingValues(start = 14.dp, top = 16.dp, end = 14.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item(key = "year-selector", contentType = "year-selector") {
+                    AccountYearSelector(
+                        year = year,
+                        canMoveForward = year < currentYear,
+                        onYearChange = onYearChange,
+                        pillStyle = true,
                     )
                 }
-                AccountMonthCard(
-                    month = month,
-                    entryCount = monthAggregate?.entryCount ?: 0,
-                    summary = summary,
-                    onClick = { onOpenMonth(year, month) },
-                    modifier = Modifier.animateItem(
-                        fadeInSpec = tween(180),
-                        placementSpec = tween(220),
-                        fadeOutSpec = tween(180),
-                    ),
-                )
+                items(
+                    items = displayedMonths,
+                    key = { month -> "$year-$month" },
+                    contentType = { "account-month" },
+                ) { month ->
+                    val monthAggregate = grouped[month]
+                    val summary = remember(monthAggregate) {
+                        AccountSummary(
+                            incomeInCents = monthAggregate?.incomeInCents ?: 0L,
+                            expenseInCents = monthAggregate?.expenseInCents ?: 0L,
+                        )
+                    }
+                    AccountMonthCard(
+                        month = month,
+                        entryCount = monthAggregate?.entryCount ?: 0,
+                        summary = summary,
+                        onClick = { onOpenMonth(year, month) },
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(180),
+                            placementSpec = tween(220),
+                            fadeOutSpec = tween(180),
+                        ),
+                    )
+                }
             }
         }
     }
@@ -852,16 +907,26 @@ internal fun AccountYearSelector(
     year: Int,
     canMoveForward: Boolean,
     onYearChange: (Int) -> Unit,
+    pillStyle: Boolean = false,
 ) {
+    val shape = if (pillStyle) RoundedCornerShape(percent = 50) else RoundedCornerShape(22.dp)
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = AccountingSurface,
-        border = BorderStroke(1.dp, AccountingBorder),
-        shadowElevation = 3.dp,
+        modifier = Modifier.fillMaxWidth().then(
+            if (pillStyle) Modifier.dropShadow(
+                shape = shape,
+                shadow = Shadow(radius = 18.dp, color = ArchiveShadow, offset = DpOffset(0.dp, 6.dp)),
+            ) else Modifier,
+        ),
+        shape = shape,
+        color = if (pillStyle) ArchiveSurface else AccountingSurface,
+        border = BorderStroke(1.dp, if (pillStyle) Color.White.copy(alpha = 0.75f) else AccountingBorder),
+        shadowElevation = if (pillStyle) 0.dp else 3.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(
+                horizontal = if (pillStyle) 12.dp else 8.dp,
+                vertical = if (pillStyle) 4.dp else 6.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -869,7 +934,17 @@ internal fun AccountYearSelector(
                 onClick = { onYearChange(year - 1) },
                 modifier = Modifier.size(48.dp).semantics { contentDescription = "上一年" },
             ) {
-                Text("‹", style = MaterialTheme.typography.headlineMedium, color = AccountingFogBlue)
+                if (pillStyle) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_home_chevron_right),
+                        contentDescription = null,
+                        tint = AccountingArchiveAccent,
+                        modifier = Modifier.size(width = 12.dp, height = 18.dp)
+                            .graphicsLayer { rotationZ = 180f },
+                    )
+                } else {
+                    Text("‹", style = MaterialTheme.typography.headlineMedium, color = AccountingFogBlue)
+                }
             }
             AnimatedContent(
                 targetState = year,
@@ -886,8 +961,10 @@ internal fun AccountYearSelector(
                 Text(
                     "${displayedYear}年",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AccountingText,
+                    fontWeight = if (pillStyle) FontWeight.Medium else FontWeight.SemiBold,
+                    color = if (pillStyle) AccountingArchiveAccent else AccountingText,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
             IconButton(
@@ -895,11 +972,20 @@ internal fun AccountYearSelector(
                 enabled = canMoveForward,
                 modifier = Modifier.size(48.dp).semantics { contentDescription = "下一年" },
             ) {
-                Text(
-                    "›",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = if (canMoveForward) AccountingFogBlue else Color(0xFFCBD6DD),
-                )
+                if (pillStyle) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_home_chevron_right),
+                        contentDescription = null,
+                        tint = if (canMoveForward) AccountingArchiveAccent else ArchiveMuted.copy(alpha = 0.45f),
+                        modifier = Modifier.size(width = 12.dp, height = 18.dp),
+                    )
+                } else {
+                    Text(
+                        "›",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = if (canMoveForward) AccountingFogBlue else Color(0xFFCBD6DD),
+                    )
+                }
             }
         }
     }
@@ -920,52 +1006,86 @@ private fun AccountMonthCard(
         animationSpec = tween(durationMillis = 180),
         label = "Account month card press scale",
     )
+    val monthAccent = ArchiveMonthAccents[month - 1]
     Card(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 132.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            },
+            }
+            .dropShadow(
+                shape = AccountingCardShape,
+                shadow = Shadow(radius = 18.dp, color = ArchiveShadow, offset = DpOffset(0.dp, 7.dp)),
+            ),
         shape = AccountingCardShape,
-        colors = CardDefaults.cardColors(containerColor = AccountingSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = ArchiveSurface),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.75f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         interactionSource = interactionSource,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 116.dp)
+                .padding(start = 18.dp, top = 16.dp, end = 12.dp, bottom = 16.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(70.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF4A8FE7)),
-            )
-            Column(
-                modifier = Modifier.weight(0.9f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            val compact = maxWidth < 300.dp
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
             ) {
-                Text(
-                    "${month}月",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AccountingText,
+                Box(
+                    modifier = Modifier
+                        .width(if (compact) 6.dp else 8.dp)
+                        .height(68.dp)
+                        .clip(CircleShape)
+                        .background(Brush.verticalGradient(listOf(monthAccent, monthAccent.copy(alpha = 0.7f)))),
                 )
-                Text(
-                    if (entryCount == 0) "等待第一笔账目" else "$entryCount 笔账目",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AccountingMuted,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "${month}月",
+                        fontSize = 28.sp,
+                        lineHeight = 36.sp,
+                        letterSpacing = 0.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccountingArchiveAccent,
+                        maxLines = 1,
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 20.sp, maxFontSize = 28.sp, stepSize = 0.5.sp),
+                    )
+                    Text(
+                        text = "$entryCount 笔账目",
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                        letterSpacing = 0.sp,
+                        color = ArchiveMuted,
+                        maxLines = 1,
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+                    )
+                }
+                AccountCompactSummary(
+                    summary = summary,
+                    modifier = Modifier.weight(1.5f),
                 )
+                Box(
+                    modifier = Modifier.size(if (compact) 28.dp else 32.dp)
+                        .clip(CircleShape).background(Color(0xFFEDF3FA)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_home_chevron_right),
+                        contentDescription = null,
+                        tint = AccountingArchiveAccent.copy(alpha = 0.75f),
+                        modifier = Modifier.size(width = 12.dp, height = 18.dp),
+                    )
+                }
             }
-            AccountCompactSummary(
-                summary = summary,
-                modifier = Modifier.weight(1.25f),
-            )
         }
     }
 }
@@ -1186,14 +1306,12 @@ private fun AccountCompactSummary(summary: AccountSummary, modifier: Modifier = 
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFFF6F9FB))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+            .background(Brush.linearGradient(listOf(Color(0xFFF1F6FC), Color(0xFFF7FAFD))))
+            .padding(horizontal = 12.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        AccountCompactSummaryLine("收入", summary.incomeInCents, AccountingIncome)
-        AccountCompactSummaryLine("支出", summary.expenseInCents, AccountingExpense)
-        HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5EBEF))
-        AccountCompactSummaryLine("结余", summary.balanceInCents, AccountingText, emphasize = true)
+        AccountCompactSummaryLine("收入", summary.incomeInCents, ArchiveIncome)
+        AccountCompactSummaryLine("支出", summary.expenseInCents, ArchiveExpense)
     }
 }
 
@@ -1202,18 +1320,31 @@ private fun AccountCompactSummaryLine(
     label: String,
     amount: Long,
     color: Color,
-    emphasize: Boolean = false,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = AccountingMuted)
-        Spacer(Modifier.weight(1f))
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = "¥${AmountUtils.formatCents(amount)}",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Medium,
-            color = color,
+            text = label,
+            modifier = Modifier.width(26.dp),
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            letterSpacing = 0.sp,
+            color = ArchiveMuted,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = "¥${AmountUtils.formatCents(amount)}".withAmountBreakOpportunities(),
+            modifier = Modifier.weight(1f),
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            letterSpacing = 0.sp,
+            fontWeight = FontWeight.Medium,
+            color = color,
+            textAlign = TextAlign.End,
+            maxLines = 3,
+            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
         )
     }
 }
@@ -2315,46 +2446,57 @@ private fun AccountingMonthScreenPreview() {
 }
 
 @Preview(
-    name = "记账 · 年月列表",
+    name = "记账 · 年月 · 设计",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 780,
+)
+@Preview(
+    name = "记账 · 年月 · 手机",
     showBackground = true,
     showSystemUi = true,
     widthDp = 390,
     heightDp = 844,
 )
+@Preview(name = "记账 · 年月 · 窄屏", showBackground = true, showSystemUi = true, widthDp = 320, heightDp = 800)
+@Preview(
+    name = "记账 · 年月 · 大字体",
+    showBackground = true,
+    showSystemUi = true,
+    widthDp = 390,
+    heightDp = 1000,
+    fontScale = 1.5f,
+)
 @Composable
 private fun AccountingYearScreenPreview() {
     val aggregates = listOf(
-        AccountMonthlyAggregate(7, 850_000L, 326_800L, 32, 18),
-        AccountMonthlyAggregate(6, 850_000L, 298_600L, 29, 16),
-        AccountMonthlyAggregate(5, 920_000L, 412_300L, 36, 21),
-    ).associateBy { it.month }
+        AccountMonthlyAggregate(10, 0L, 26_400L, 22, 5),
+        AccountMonthlyAggregate(9, 0L, 295_729L, 111, 24),
+        AccountMonthlyAggregate(8, 706_695L, 488_650L, 141, 28),
+        AccountMonthlyAggregate(7, 415_636L, 393_778L, 122, 26),
+        AccountMonthlyAggregate(6, 200_000L, 152_032L, 98, 23),
+    )
 
-    BlueTheme(dynamicColor = false) {
-        Scaffold(
-            containerColor = AccountingBackground,
-            topBar = { AccountTopBar(title = "按年月查看", onBack = {}) },
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                item {
-                    AccountYearSelector(year = 2026, canMoveForward = false, onYearChange = {})
-                }
-                items(listOf(7, 6, 5, 4), key = { it }) { month ->
-                    val aggregate = aggregates[month]
-                    AccountMonthCard(
-                        month = month,
-                        entryCount = aggregate?.entryCount ?: 0,
-                        summary = AccountSummary(
-                            incomeInCents = aggregate?.incomeInCents ?: 0L,
-                            expenseInCents = aggregate?.expenseInCents ?: 0L,
-                        ),
-                        onClick = {},
-                    )
-                }
-            }
+    BlueTheme(darkTheme = false, dynamicColor = false) {
+        FeatureHubScreen(
+            tabs = listOf(
+                FeatureHubTab("archive", "年月"),
+                FeatureHubTab("browse", "浏览"),
+                FeatureHubTab("summary", "总结"),
+            ),
+            accentColor = AccountingArchiveAccent,
+            tabStyle = AccountingArchiveTabStyle,
+        ) {
+            AccountingYearContent(
+                year = 2026,
+                currentYear = 2026,
+                displayedMonths = accountingMonthsForYear(2026, LocalDate.of(2026, 10, 5)),
+                monthlyAggregates = aggregates,
+                onYearChange = {},
+                onOpenMonth = { _, _ -> },
+                onBack = {},
+                showTopBar = false,
+            )
         }
     }
 }

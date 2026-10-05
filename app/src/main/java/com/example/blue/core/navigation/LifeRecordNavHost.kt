@@ -51,6 +51,8 @@ import androidx.navigation.compose.composable
 import com.example.blue.core.AppContainer
 import com.example.blue.core.util.SleepDateRules
 import com.example.blue.feature.accounting.AccountEditorScreen
+import com.example.blue.feature.accounting.AccountingArchiveAccent
+import com.example.blue.feature.accounting.AccountingArchiveTabStyle
 import com.example.blue.feature.accounting.AccountingBrowseScreen
 import com.example.blue.feature.accounting.AccountingDayScreen
 import com.example.blue.feature.accounting.AccountingMonthScreen
@@ -554,7 +556,8 @@ private fun DiaryHubScreen(container: AppContainer, navController: NavHostContro
 private fun AccountingHubScreen(container: AppContainer, navController: NavHostController) {
     FeatureHubScreen(
         tabs = accountingHubTabs,
-        accentColor = Color(0xFFA86F40),
+        accentColor = AccountingArchiveAccent,
+        tabStyle = AccountingArchiveTabStyle,
     ) { page ->
         when (page) {
             0 -> AccountingYearScreen(
