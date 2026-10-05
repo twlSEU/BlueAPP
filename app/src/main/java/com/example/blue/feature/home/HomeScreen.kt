@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
@@ -245,7 +246,6 @@ private fun FeatureCard(
 ) {
     val palette = remember(feature.accent, darkTheme) { featurePalette(feature.accent, darkTheme) }
     val interactionSource = remember { MutableInteractionSource() }
-    val fontScale = LocalDensity.current.fontScale
 
     BoxWithConstraints(
         modifier = Modifier
@@ -285,44 +285,21 @@ private fun FeatureCard(
         val compact = maxWidth < 324.dp
         val iconSize = if (compact) 48.dp else 56.dp
         val iconGap = if (compact) 10.dp else 12.dp
-        val buttonWidth = (if (compact) 96.dp else 108.dp) * fontScale
-        val stackAction = maxWidth < iconSize + iconGap + 96.dp * fontScale + 8.dp + buttonWidth + 48.dp
-        if (stackAction) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(iconGap),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FeatureIcon(feature, palette, iconSize)
-                    FeatureInformation(feature.destination.title, metricLabel, colors, Modifier.weight(1f))
-                    OverviewChevron(colors)
-                }
-                FeatureActionButton(
-                    label = feature.primaryAction.title,
-                    onClick = onActionClick,
-                    containerColor = palette.button,
-                    contentColor = palette.onButton,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = iconSize + iconGap, end = 12.dp),
-                )
-            }
-        } else {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                FeatureIcon(feature, palette, iconSize)
-                Spacer(Modifier.width(iconGap))
-                FeatureInformation(feature.destination.title, metricLabel, colors, Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
-                FeatureActionButton(
-                    label = feature.primaryAction.title,
-                    onClick = onActionClick,
-                    containerColor = palette.button,
-                    contentColor = palette.onButton,
-                    modifier = Modifier.width(buttonWidth),
-                )
-                OverviewChevron(colors)
-            }
+        // Keep the action beside the information, independent of system font scale.
+        val buttonWidth = (maxWidth * 0.3f).coerceIn(80.dp, 108.dp)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            FeatureIcon(feature, palette, iconSize)
+            Spacer(Modifier.width(iconGap))
+            FeatureInformation(feature.destination.title, metricLabel, colors, Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            FeatureActionButton(
+                label = feature.primaryAction.title,
+                onClick = onActionClick,
+                containerColor = palette.button,
+                contentColor = palette.onButton,
+                modifier = Modifier.width(buttonWidth),
+            )
+            OverviewChevron(colors)
         }
     }
 }
@@ -356,10 +333,13 @@ private fun FeatureInformation(
             text = title,
             modifier = Modifier.semantics { heading() },
             fontFamily = FontFamily.SansSerif,
-            fontSize = 22.sp,
+            autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
             lineHeight = 28.sp,
             fontWeight = FontWeight.Bold,
             color = colors.title,
+            letterSpacing = 0.sp,
+            maxLines = 1,
+            softWrap = false,
         )
         Text(
             text = metricLabel,
@@ -367,6 +347,9 @@ private fun FeatureInformation(
             fontSize = 14.sp,
             lineHeight = 21.sp,
             color = colors.muted,
+            letterSpacing = 0.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -374,7 +357,7 @@ private fun FeatureInformation(
 @Composable
 private fun OverviewChevron(colors: HomeColors) {
     // The enclosing card owns the overview click and its accessibility label.
-    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.size(width = 28.dp, height = 48.dp), contentAlignment = Alignment.Center) {
         Icon(
             painter = painterResource(R.drawable.ic_home_chevron_right),
             contentDescription = null,
@@ -410,15 +393,18 @@ private fun FeatureActionButton(
         shadowElevation = 0.dp,
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = label,
                 fontFamily = FontFamily.SansSerif,
-                fontSize = 15.sp,
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
                 lineHeight = 24.sp,
                 fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.sp,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
@@ -530,6 +516,8 @@ private val HomePreviewDate = LocalDate.of(2025, 4, 16)
 @Preview(name = "首页 · 设计稿", showBackground = true, widthDp = 390, heightDp = 686, locale = "zh-rCN")
 @Preview(name = "首页 · 浅色", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 844, locale = "zh-rCN")
 @Preview(name = "首页 · 窄屏", showBackground = true, showSystemUi = true, widthDp = 320, heightDp = 740, locale = "zh-rCN")
+@Preview(name = "首页 · 手机", showBackground = true, showSystemUi = true, widthDp = 360, heightDp = 800, fontScale = 1.15f, locale = "zh-rCN")
+@Preview(name = "首页 · 窄屏大字体", showBackground = true, showSystemUi = true, widthDp = 320, heightDp = 740, fontScale = 1.5f, locale = "zh-rCN")
 @Preview(name = "首页 · 大字体", showBackground = true, showSystemUi = true, widthDp = 390, heightDp = 844, fontScale = 1.5f, locale = "zh-rCN")
 @Preview(name = "首页 · 平板", showBackground = true, showSystemUi = true, widthDp = 800, heightDp = 1100, locale = "zh-rCN")
 @Composable
