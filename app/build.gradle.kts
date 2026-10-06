@@ -56,7 +56,7 @@ android {
 room {
     schemaDirectory("$projectDir/schemas")
 }
-
+0
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(platform(libs.androidx.compose.bom))

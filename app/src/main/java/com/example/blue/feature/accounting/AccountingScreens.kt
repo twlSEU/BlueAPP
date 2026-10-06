@@ -634,7 +634,6 @@ private fun AccountingExpenseCalendar(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountingDayScreen(
     repository: AccountRepository,
@@ -648,38 +647,18 @@ fun AccountingDayScreen(
     val date = remember(yearMonth, day) { yearMonth.atDay(day) }
     val daily by remember(repository, date) {
         repository.observeEntriesForDate(date)
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
+            .map<List<AccountEntryWithCategory>, List<AccountEntryWithCategory>?> { it }
+    }.collectAsStateWithLifecycle(initialValue = null)
     var deleting by remember { mutableStateOf<AccountEntryWithCategory?>(null) }
     val scope = rememberCoroutineScope()
 
-    Scaffold(
-        containerColor = AccountingBackground,
-        topBar = { AccountTopBar(title = "${month}月${day}日", onBack = onBack) },
-        floatingActionButton = {
-            AppAnimatedFloatingAction {
-                FloatingActionButton(
-                    onClick = { onEdit(null) },
-                    shape = RoundedCornerShape(18.dp),
-                    containerColor = AccountingAccent,
-                    contentColor = Color.White,
-                    elevation = FloatingActionButtonDefaults.elevation(
-                        defaultElevation = 6.dp,
-                        pressedElevation = 2.dp,
-                    ),
-                ) {
-                    Text("+", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
-                }
-            }
-        },
-    ) { padding ->
-        AccountingDayContent(
-            date = date,
-            entries = daily,
-            onEdit = onEdit,
-            onDelete = { deleting = it },
-            modifier = Modifier.padding(padding),
-        )
-    }
+    AccountingDayScreenContent(
+        date = date,
+        entries = daily,
+        onEdit = onEdit,
+        onDelete = { deleting = it },
+        onBack = onBack,
+    )
 
     deleting?.let { target ->
         DeleteConfirmationDialog(
@@ -2531,47 +2510,6 @@ private fun AccountingYearScreenPreview() {
                 onOpenMonth = { _, _ -> },
                 onBack = {},
                 showTopBar = false,
-            )
-        }
-    }
-}
-
-@Preview(
-    name = "记账 · 当日账目",
-    showBackground = true,
-    showSystemUi = true,
-    widthDp = 390,
-    heightDp = 844,
-)
-@Preview(name = "记账 · 当日账目 · 窄屏", showBackground = true, widthDp = 320, heightDp = 740)
-@Composable
-private fun AccountingDayScreenPreview() {
-    val date = LocalDate.of(2026, 7, 17)
-    val dining = accountingPreviewCategory("餐饮", AccountType.EXPENSE, 0)
-    val transport = accountingPreviewCategory("交通", AccountType.EXPENSE, 1)
-    val entries = listOf(
-        accountingPreviewEntry("午餐", 2_860L, date, LocalTime.of(12, 30), dining, "day-1"),
-        accountingPreviewEntry("地铁", 600L, date, LocalTime.of(8, 20), transport, "day-2"),
-    )
-
-    BlueTheme(dynamicColor = false) {
-        Scaffold(
-            containerColor = AccountingBackground,
-            topBar = { AccountTopBar(title = "7月17日", onBack = {}) },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = {},
-                    shape = RoundedCornerShape(18.dp),
-                    containerColor = AccountingAccent,
-                    contentColor = Color.White,
-                ) {
-                    Text("+", style = MaterialTheme.typography.headlineSmall)
-                }
-            },
-        ) { padding ->
-            AccountingDayContent(
-                date = date, entries = entries, onEdit = {}, onDelete = {},
-                modifier = Modifier.padding(padding),
             )
         }
     }
