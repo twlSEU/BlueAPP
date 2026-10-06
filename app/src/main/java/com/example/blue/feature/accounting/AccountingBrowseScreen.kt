@@ -1,12 +1,6 @@
 package com.example.blue.feature.accounting
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -20,25 +14,27 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,7 +43,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,15 +52,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.blue.R
@@ -75,6 +74,20 @@ import com.example.blue.data.local.entity.AccountEntryEntity
 import com.example.blue.data.local.entity.AccountEntryWithCategory
 import com.example.blue.data.repository.AccountBrowseSortField
 import com.example.blue.data.repository.AccountRepository
+import com.example.blue.feature.common.FeatureHubScreen
+import com.example.blue.feature.common.FeatureHubTab
+import com.example.blue.feature.common.RefinedBackground
+import com.example.blue.feature.common.RefinedBlue
+import com.example.blue.feature.common.RefinedCard
+import com.example.blue.feature.common.RefinedCoral
+import com.example.blue.feature.common.RefinedInk
+import com.example.blue.feature.common.RefinedLine
+import com.example.blue.feature.common.RefinedMuted
+import com.example.blue.feature.common.RefinedPeriodSelector
+import com.example.blue.feature.common.RefinedSegmentedControl
+import com.example.blue.feature.common.RefinedShadow
+import com.example.blue.feature.common.RefinedTeal
+import com.example.blue.feature.common.RefinedTopBar
 import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.model.AccountType
 import com.example.blue.ui.theme.BlueTheme
@@ -83,15 +96,15 @@ import java.time.LocalTime
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 
-private val BrowseBackground = Color(0xFFF6F8FC)
+private val BrowseBackground = RefinedBackground
 private val BrowseSurface = Color(0xFFFEFFFF)
-private val BrowseText = Color(0xFF2D4555)
-private val BrowseMuted = Color(0xFF748895)
-private val BrowseAccent = Color(0xFF3D7BE5)
+private val BrowseText = RefinedInk
+private val BrowseMuted = RefinedMuted
+private val BrowseAccent = RefinedBlue
 private val BrowseAccentSoft = Color(0xFFEAF3FF)
-private val BrowseBorder = Color(0xFFDCE7EE)
-private val BrowseExpense = Color(0xFFC96868)
-private val BrowseIncome = Color(0xFF3F8D78)
+private val BrowseBorder = RefinedLine
+private val BrowseExpense = RefinedCoral
+private val BrowseIncome = RefinedTeal
 
 @Composable
 fun AccountingBrowseScreen(
@@ -128,167 +141,173 @@ fun AccountingBrowseScreen(
             }
     }
 
+    AccountingBrowseContent(
+        uiState = uiState, listState = listState,
+        actions = BrowseUiActions(
+            onAllYears = { browseViewModel.selectYear(null) },
+            onCurrentYear = { browseViewModel.selectYear(LocalDate.now().year) },
+            onMoveYear = browseViewModel::moveYear,
+            onMonthSelected = browseViewModel::selectMonth,
+            onTypeSelected = browseViewModel::selectType,
+            onCategorySelected = browseViewModel::selectCategory,
+            onSearchChanged = browseViewModel::updateSearchText,
+            onSortSelected = browseViewModel::selectSort,
+            onRetry = browseViewModel::retry,
+            onLoadPrevious = browseViewModel::loadPrevious,
+            onLoadNext = browseViewModel::loadNext,
+            onOpenEntry = onOpenEntry,
+        ),
+        onBack = onBack, showTopBar = showTopBar,
+    )
+}
+
+private data class BrowseUiActions(
+    val onAllYears: () -> Unit = {},
+    val onCurrentYear: () -> Unit = {},
+    val onMoveYear: (Int) -> Unit = {},
+    val onMonthSelected: (Int?) -> Unit = {},
+    val onTypeSelected: (AccountType?) -> Unit = {},
+    val onCategorySelected: (String?) -> Unit = {},
+    val onSearchChanged: (String) -> Unit = {},
+    val onSortSelected: (AccountBrowseSortField, Boolean) -> Unit = { _, _ -> },
+    val onRetry: () -> Unit = {},
+    val onLoadPrevious: () -> Unit = {},
+    val onLoadNext: () -> Unit = {},
+    val onOpenEntry: (String) -> Unit = {},
+)
+
+@Composable
+private fun AccountingBrowseContent(
+    uiState: AccountingBrowseUiState,
+    listState: LazyListState,
+    actions: BrowseUiActions,
+    onBack: () -> Unit,
+    showTopBar: Boolean,
+) {
     Scaffold(
         containerColor = BrowseBackground,
-        topBar = { if (showTopBar) BrowseTopBar(onBack = onBack) },
+        topBar = { if (showTopBar) RefinedTopBar("全局浏览", onBack) },
         contentWindowInsets = appScaffoldContentWindowInsets(showTopBar),
     ) { padding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item(key = "browse-filters", contentType = "filters") {
-                AccountingBrowseFilters(
-                    uiState = uiState,
-                    onAllYears = { browseViewModel.selectYear(null) },
-                    onCurrentYear = { browseViewModel.selectYear(LocalDate.now().year) },
-                    onMoveYear = browseViewModel::moveYear,
-                    onMonthSelected = browseViewModel::selectMonth,
-                    onTypeSelected = browseViewModel::selectType,
-                    onCategorySelected = browseViewModel::selectCategory,
-                    onSearchChanged = browseViewModel::updateSearchText,
-                    onSortSelected = browseViewModel::selectSort,
-                )
-            }
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 34.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item(key = "browse-filters", contentType = "filters") {
+                    AccountingBrowseFilters(
+                        uiState = uiState,
+                        onAllYears = actions.onAllYears,
+                        onCurrentYear = actions.onCurrentYear,
+                        onMoveYear = actions.onMoveYear,
+                        onMonthSelected = actions.onMonthSelected,
+                        onTypeSelected = actions.onTypeSelected,
+                        onCategorySelected = actions.onCategorySelected,
+                        onSearchChanged = actions.onSearchChanged,
+                        onSortSelected = actions.onSortSelected,
+                    )
+                }
 
-            item(key = "browse-count", contentType = "result-header") {
-                BrowseResultHeader(uiState)
-            }
+                item(key = "browse-count", contentType = "result-header") {
+                    BrowseResultHeader(uiState)
+                }
 
-            if (uiState.isLoading && uiState.items.isEmpty()) {
-                item(key = "browse-initial-loading", contentType = "status") {
-                    BrowseStatusCard(
-                        title = "正在整理账目",
-                        message = "稍等一下，记录很快就好。",
-                        loading = true,
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                    )
-                }
-            } else if (uiState.errorMessage != null && uiState.items.isEmpty()) {
-                item(key = "browse-initial-error", contentType = "status") {
-                    BrowseErrorCard(
-                        message = uiState.errorMessage.orEmpty(),
-                        onRetry = browseViewModel::retry,
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                    )
-                }
-            } else if (uiState.initialized && uiState.items.isEmpty()) {
-                item(key = "browse-empty", contentType = "status") {
-                    BrowseStatusCard(
-                        title = "没有找到账目",
-                        message = "换一个年份、分类或搜索词试试。",
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(180),
-                            placementSpec = tween(220),
-                            fadeOutSpec = tween(180),
-                        ),
-                    )
-                }
-            } else {
-                if (uiState.canLoadPrevious) {
-                    item(key = "browse-load-previous", contentType = "page-control") {
-                        BrowsePageControl(
-                            label = if (
-                                uiState.isLoading && uiState.loadDirection == BrowseLoadDirection.PREVIOUS
-                            ) {
-                                "正在加载上一页…"
-                            } else {
-                                "加载上一页"
-                            },
-                            enabled = !uiState.isLoading,
-                            onClick = browseViewModel::loadPrevious,
+                if (uiState.isLoading && uiState.items.isEmpty()) {
+                    item(key = "browse-initial-loading", contentType = "status") {
+                        BrowseStatusCard(
+                            title = "正在整理账目",
+                            message = "稍等一下，记录很快就好。",
+                            loading = true,
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(180),
+                                placementSpec = tween(220),
+                                fadeOutSpec = tween(180),
+                            ),
                         )
                     }
-                }
-
-                items(
-                    items = uiState.items,
-                    key = { it.entry.id },
-                    contentType = { "account-entry" },
-                ) { item ->
-                    BrowseEntryCard(
-                        item = item,
-                        onClick = { onOpenEntry(item.entry.id) },
-                    )
-                }
-
-                if (uiState.errorMessage != null) {
-                    item(key = "browse-page-error", contentType = "status") {
-                        BrowseErrorCard(message = uiState.errorMessage.orEmpty(), onRetry = browseViewModel::retry)
+                } else if (uiState.errorMessage != null && uiState.items.isEmpty()) {
+                    item(key = "browse-initial-error", contentType = "status") {
+                        BrowseErrorCard(
+                            message = uiState.errorMessage.orEmpty(),
+                            onRetry = actions.onRetry,
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(180),
+                                placementSpec = tween(220),
+                                fadeOutSpec = tween(180),
+                            ),
+                        )
                     }
-                }
-
-                item(key = "browse-footer", contentType = "page-control") {
-                    when {
-                        uiState.isLoading && uiState.loadDirection != BrowseLoadDirection.REFRESH -> {
-                            BrowsePageControl(label = "正在加载更多…", enabled = false, onClick = {})
-                        }
-                        uiState.canLoadNext -> {
-                            BrowsePageControl(label = "加载下一页", onClick = browseViewModel::loadNext)
-                        }
-                        else -> {
-                            Text(
-                                "已经到底了",
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = BrowseMuted,
-                                textAlign = TextAlign.Center,
+                } else if (uiState.initialized && uiState.items.isEmpty()) {
+                    item(key = "browse-empty", contentType = "status") {
+                        BrowseStatusCard(
+                            title = "没有找到账目",
+                            message = "换一个年份、分类或搜索词试试。",
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(180),
+                                placementSpec = tween(220),
+                                fadeOutSpec = tween(180),
+                            ),
+                        )
+                    }
+                } else {
+                    if (uiState.canLoadPrevious) {
+                        item(key = "browse-load-previous", contentType = "page-control") {
+                            BrowsePageControl(
+                                label = if (
+                                    uiState.isLoading && uiState.loadDirection == BrowseLoadDirection.PREVIOUS
+                                ) {
+                                    "正在加载上一页…"
+                                } else {
+                                    "加载上一页"
+                                },
+                                enabled = !uiState.isLoading,
+                                onClick = actions.onLoadPrevious,
                             )
+                        }
+                    }
+
+                    items(
+                        items = uiState.items,
+                        key = { it.entry.id },
+                        contentType = { "account-entry" },
+                    ) { item ->
+                        BrowseEntryCard(
+                            item = item,
+                            onClick = { actions.onOpenEntry(item.entry.id) },
+                        )
+                    }
+
+                    if (uiState.errorMessage != null) {
+                        item(key = "browse-page-error", contentType = "status") {
+                            BrowseErrorCard(message = uiState.errorMessage.orEmpty(), onRetry = actions.onRetry)
+                        }
+                    }
+
+                    item(key = "browse-footer", contentType = "page-control") {
+                        when {
+                            uiState.isLoading && uiState.loadDirection != BrowseLoadDirection.REFRESH -> {
+                                BrowsePageControl(label = "正在加载更多…", enabled = false, onClick = {})
+                            }
+                            uiState.canLoadNext -> {
+                                BrowsePageControl(label = "加载下一页", onClick = actions.onLoadNext)
+                            }
+                            else -> {
+                                Text(
+                                    "已经到底了",
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = BrowseMuted,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BrowseTopBar(onBack: () -> Unit) {
-    CenterAlignedTopAppBar(
-        title = {
-            Text(
-                "全局浏览",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = BrowseText,
-            )
-        },
-        navigationIcon = {
-            Box(modifier = Modifier.padding(start = 12.dp), contentAlignment = Alignment.Center) {
-                Surface(
-                    onClick = onBack,
-                    modifier = Modifier.size(38.dp),
-                    shape = CircleShape,
-                    color = BrowseSurface,
-                    shadowElevation = 1.dp,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = "返回",
-                            modifier = Modifier.size(18.dp),
-                            tint = BrowseText,
-                        )
-                    }
-                }
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = BrowseBackground,
-            scrolledContainerColor = BrowseBackground,
-        ),
-    )
 }
 
 @Composable
@@ -317,16 +336,10 @@ private fun AccountingBrowseFilters(
         preferred + visibleCategories.filterNot { it in preferred }.take((3 - preferred.size).coerceAtLeast(0))
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = BrowseSurface),
-        border = BorderStroke(1.dp, BrowseBorder.copy(alpha = 0.55f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-    ) {
+    RefinedCard {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
@@ -402,92 +415,21 @@ private fun BrowseYearModeSelector(
     onAllYears: () -> Unit,
     onCurrentYear: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .width(152.dp)
-            .background(Color(0xFFF0F3F6), RoundedCornerShape(14.dp))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        BrowseSegmentOption("全部", allSelected, Modifier.weight(1f), onAllYears)
-        BrowseSegmentOption("今年", currentYearSelected, Modifier.weight(1f), onCurrentYear)
-    }
-}
-
-@Composable
-private fun BrowseSegmentOption(
-    label: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(34.dp),
-        shape = RoundedCornerShape(11.dp),
-        color = if (selected) BrowseAccentSoft else Color.Transparent,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) BrowseAccent else BrowseMuted,
-            )
-        }
-    }
+    RefinedSegmentedControl(
+        options = listOf("全部", "今年"),
+        selectedIndex = when { allSelected -> 0; currentYearSelected -> 1; else -> -1 },
+        onSelected = { if (it == 0) onAllYears() else onCurrentYear() },
+        modifier = Modifier.width(152.dp),
+    )
 }
 
 @Composable
 private fun BrowseYearSwitcher(year: Int?, canMoveForward: Boolean, onMoveYear: (Int) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        BrowseArrowButton(enabled = year != null, mirrored = false) { onMoveYear(-1) }
-        AnimatedContent(
-            targetState = year,
-            transitionSpec = {
-                val initialYear = initialState ?: targetState ?: 0
-                val targetYear = targetState ?: initialState ?: 0
-                val direction = if (targetYear >= initialYear) 1 else -1
-                (fadeIn(tween(180)) + slideInHorizontally(tween(220)) { width -> direction * width / 4 })
-                    .togetherWith(
-                        fadeOut(tween(160)) +
-                            slideOutHorizontally(tween(200)) { width -> -direction * width / 4 },
-                    )
-            },
-            label = "Accounting browse year",
-        ) { displayedYear ->
-            Text(
-                text = displayedYear?.let { "${it}年" } ?: "跨年份",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (displayedYear == null) BrowseMuted else BrowseText,
-            )
-        }
-        BrowseArrowButton(enabled = canMoveForward, mirrored = true) { onMoveYear(1) }
-    }
-}
-
-@Composable
-private fun BrowseArrowButton(enabled: Boolean, mirrored: Boolean, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(34.dp),
-        shape = CircleShape,
-        color = Color(0xFFF3F5F7),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = if (mirrored) "›" else "‹",
-                style = MaterialTheme.typography.titleLarge,
-                color = if (enabled) BrowseText else BrowseMuted.copy(alpha = 0.35f),
-            )
-        }
-    }
+    RefinedPeriodSelector(
+        label = year?.let { "${it}年" } ?: "跨年份",
+        canMoveBack = year != null, canMoveForward = canMoveForward,
+        onPrevious = { onMoveYear(-1) }, onNext = { onMoveYear(1) },
+    )
 }
 
 @Composable
@@ -557,59 +499,11 @@ private fun BrowseMonthSelector(
 
 @Composable
 private fun BrowseTypeSelector(selected: AccountType?, onSelected: (AccountType?) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().background(Color(0xFFF0F3F6), RoundedCornerShape(15.dp)).padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        BrowseTypeOption("全部", R.drawable.ic_wallet, selected == null, Modifier.weight(1f)) { onSelected(null) }
-        BrowseTypeOption(
-            "支出",
-            R.drawable.ic_trending_down,
-            selected == AccountType.EXPENSE,
-            Modifier.weight(1f),
-        ) { onSelected(AccountType.EXPENSE) }
-        BrowseTypeOption(
-            "收入",
-            R.drawable.ic_trending_up,
-            selected == AccountType.INCOME,
-            Modifier.weight(1f),
-        ) { onSelected(AccountType.INCOME) }
-    }
-}
-
-@Composable
-private fun BrowseTypeOption(
-    label: String,
-    iconRes: Int,
-    selected: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(40.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) BrowseAccentSoft else Color.Transparent,
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(15.dp),
-                tint = if (selected) BrowseAccent else BrowseMuted,
-            )
-            Spacer(Modifier.width(5.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) BrowseAccent else BrowseMuted,
-            )
-        }
-    }
+    RefinedSegmentedControl(
+        options = listOf("全部", "支出", "收入"),
+        selectedIndex = when (selected) { null -> 0; AccountType.EXPENSE -> 1; AccountType.INCOME -> 2 },
+        onSelected = { onSelected(when (it) { 1 -> AccountType.EXPENSE; 2 -> AccountType.INCOME; else -> null }) },
+    )
 }
 
 @Composable
@@ -644,7 +538,11 @@ private fun BrowseCategorySelector(
                     selected = selectedCategoryId != null && selectedCategoryId !in commonIds,
                     iconRes = R.drawable.ic_grid,
                 ) { onMenuVisibleChange(true) }
-                DropdownMenu(expanded = menuVisible, onDismissRequest = { onMenuVisibleChange(false) }) {
+                DropdownMenu(
+                    expanded = menuVisible, onDismissRequest = { onMenuVisibleChange(false) },
+                    shape = RoundedCornerShape(18.dp), containerColor = BrowseSurface,
+                    border = null, shadowElevation = 8.dp,
+                ) {
                     categories.forEach { category ->
                         DropdownMenuItem(
                             text = { Text(category.name) },
@@ -673,7 +571,7 @@ private fun BrowseSearchField(value: String, onValueChange: (String) -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().height(50.dp),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xFFF1F4F7),
+        color = Color(0xFFF3F6FB),
     ) {
         Row(
             modifier = Modifier.fillMaxSize().padding(start = 14.dp, end = 4.dp),
@@ -691,7 +589,7 @@ private fun BrowseSearchField(value: String, onValueChange: (String) -> Unit) {
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = BrowseText),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = BrowseText),
                 cursorBrush = SolidColor(BrowseAccent),
                 decorationBox = { innerTextField ->
                     Box {
@@ -729,8 +627,8 @@ private fun BrowseSortSelector(
             onClick = { onExpandedChange(true) },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(16.dp),
-            color = if (expanded) BrowseAccentSoft.copy(alpha = 0.72f) else Color(0xFFF1F4F7),
-            border = if (expanded) BorderStroke(1.dp, BrowseAccent.copy(alpha = 0.30f)) else null,
+            color = if (expanded) BrowseAccentSoft.copy(alpha = 0.72f) else Color(0xFFF3F6FB),
+            border = if (expanded) BorderStroke(1.dp, BrowseAccent.copy(alpha = 0.12f)) else null,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
@@ -757,7 +655,7 @@ private fun BrowseSortSelector(
             modifier = Modifier.width(maxWidth),
             shape = RoundedCornerShape(18.dp),
             containerColor = BrowseSurface,
-            border = BorderStroke(1.dp, BrowseBorder.copy(alpha = 0.85f)),
+            border = null,
             shadowElevation = 10.dp,
         ) {
             val options = listOf(
@@ -780,7 +678,7 @@ private fun BrowseSortSelector(
                         Surface(
                             modifier = Modifier.size(30.dp),
                             shape = RoundedCornerShape(10.dp),
-                            color = if (selected) BrowseAccentSoft else Color(0xFFF3F5F7),
+                            color = if (selected) BrowseAccentSoft else Color(0xFFF3F6FB),
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -852,8 +750,8 @@ private fun BrowseFilterChip(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(13.dp),
-        color = if (selected) BrowseAccentSoft else Color(0xFFF3F5F7),
-        border = if (selected) BorderStroke(1.dp, BrowseAccent.copy(alpha = 0.14f)) else null,
+        color = if (selected) BrowseAccentSoft else Color(0xFFF3F6FB),
+        border = if (selected) BorderStroke(1.dp, BrowseAccent.copy(alpha = 0.08f)) else null,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = horizontalContentPadding, vertical = 8.dp),
@@ -871,7 +769,9 @@ private fun BrowseFilterChip(
             }
             Text(
                 label,
-                style = MaterialTheme.typography.labelMedium,
+                fontSize = 12.sp,
+                autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                softWrap = false,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 color = if (selected) BrowseAccent else BrowseMuted,
                 maxLines = 1,
@@ -895,57 +795,41 @@ private fun BrowseEntryCard(
 ) {
     val isIncome = item.entry.type == AccountType.INCOME
     val amountColor = if (isIncome) BrowseIncome else BrowseExpense
+    val shape = RoundedCornerShape(20.dp)
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = BrowseSurface,
-        shadowElevation = 2.dp,
+        modifier = modifier.fillMaxWidth().dropShadow(shape, Shadow(radius = 14.dp, color = RefinedShadow, offset = DpOffset(0.dp, 4.dp))),
+        shape = shape, color = BrowseSurface,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(42.dp).background(BrowseAccentSoft, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center,
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(14.dp)) {
+            val amountWidth = (maxWidth * 0.34f).coerceIn(78.dp, 138.dp)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(
-                    painter = painterResource(browseCategoryIconRes(item.category.name)),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = BrowseAccent,
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+                Box(
+                    Modifier.size(40.dp).background(amountColor.copy(alpha = 0.07f), RoundedCornerShape(13.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(painterResource(browseCategoryIconRes(item.category.name)), null, Modifier.size(19.dp), tint = amountColor)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(item.entry.name, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, color = BrowseText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("${item.category.name} · ${item.entry.entryDate}", fontSize = 11.sp, lineHeight = 16.sp, color = BrowseMuted)
+                }
+                val amount = (if (isIncome) "+¥" else "−¥") + AmountUtils.formatCents(item.entry.amountInCents)
+                val longAmount = amount.length > 14
                 Text(
-                    text = "${item.category.name} · ${item.entry.name}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = BrowseText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    text = if (longAmount) amount.replace(",", ",\u200B") else amount,
+                    modifier = Modifier.width(amountWidth),
+                    fontSize = 19.sp, lineHeight = 25.sp, fontWeight = FontWeight.SemiBold,
+                    color = amountColor, textAlign = TextAlign.End,
+                    maxLines = if (longAmount) 2 else 1, softWrap = longAmount,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 19.sp, stepSize = 0.5.sp),
                 )
-                Text(
-                    text = item.entry.entryDate.toString(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BrowseMuted,
-                )
+                Icon(painterResource(R.drawable.ic_home_chevron_right), null, Modifier.size(width = 8.dp, height = 13.dp), tint = BrowseMuted.copy(alpha = 0.6f))
             }
-            Text(
-                text = buildString {
-                    append(if (isIncome) "+¥" else "-¥")
-                    append(AmountUtils.formatCents(item.entry.amountInCents))
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = amountColor,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-            )
         }
     }
 }
@@ -1009,7 +893,6 @@ private fun BrowseStatusCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = BrowseSurface),
-        border = BorderStroke(1.dp, BrowseBorder),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 34.dp),
@@ -1042,7 +925,6 @@ private fun BrowseErrorCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF5F4)),
-        border = BorderStroke(1.dp, BrowseExpense.copy(alpha = 0.24f)),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -1060,7 +942,7 @@ private fun BrowseErrorCard(
             Button(
                 onClick = onRetry,
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrowseExpense),
+                colors = ButtonDefaults.buttonColors(containerColor = BrowseExpense.copy(alpha = 0.10f), contentColor = BrowseExpense),
             ) {
                 Text("重试")
             }
@@ -1068,15 +950,7 @@ private fun BrowseErrorCard(
     }
 }
 
-@Preview(
-    name = "记账 · 全部账目",
-    showBackground = true,
-    showSystemUi = true,
-    widthDp = 390,
-    heightDp = 1000,
-)
-@Composable
-private fun AccountingBrowseScreenPreview() {
+private fun accountingBrowsePreviewState(): AccountingBrowseUiState {
     val dining = AccountCategoryEntity(
         id = "preview-dining",
         name = "餐饮",
@@ -1152,44 +1026,51 @@ private fun AccountingBrowseScreenPreview() {
             category = salary,
         ),
     )
-    val uiState = AccountingBrowseUiState(
-        items = entries,
-        categories = listOf(dining, transport, salary),
-        selectedYear = 2026,
-        selectedMonth = 7,
-        totalCount = entries.size,
-        initialized = true,
+    return AccountingBrowseUiState(
+        items = entries, categories = listOf(dining, transport, salary),
+        selectedYear = 2026, selectedMonth = 7, totalCount = entries.size, initialized = true,
     )
+}
 
-    BlueTheme(dynamicColor = false) {
-        Scaffold(
-            containerColor = BrowseBackground,
-            topBar = { BrowseTopBar(onBack = {}) },
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item {
-                    AccountingBrowseFilters(
-                        uiState = uiState,
-                        onAllYears = {},
-                        onCurrentYear = {},
-                        onMoveYear = {},
-                        onMonthSelected = {},
-                        onTypeSelected = {},
-                        onCategorySelected = {},
-                        onSearchChanged = {},
-                        onSortSelected = { _, _ -> },
-                    )
-                }
-                item { BrowseResultHeader(uiState) }
-                items(entries, key = { it.entry.id }) { item ->
-                    BrowseEntryCard(item = item, onClick = {})
-                }
-                item { Text("已经到底了", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
-            }
+@Preview(name = "记账浏览 · 标准手机", widthDp = 390, heightDp = 1100, showBackground = true)
+@Preview(name = "记账浏览 · 窄屏", widthDp = 320, heightDp = 1100, showBackground = true)
+@Preview(name = "记账浏览 · 大字体", widthDp = 390, heightDp = 1300, fontScale = 1.5f, showBackground = true)
+@Composable
+private fun AccountingBrowseScreenPreview() {
+    BlueTheme(darkTheme = false) {
+        FeatureHubScreen(
+            tabs = listOf(FeatureHubTab("archive", "年月"), FeatureHubTab("browse", "浏览"), FeatureHubTab("summary", "总结")),
+            initialPage = 1, accentColor = AccountingArchiveAccent, tabStyle = AccountingArchiveTabStyle,
+        ) {
+            AccountingBrowseContent(accountingBrowsePreviewState(), rememberLazyListState(), BrowseUiActions(), {}, showTopBar = false)
         }
+    }
+}
+
+@Preview(name = "记账浏览 · 记录列表", widthDp = 390, heightDp = 500, showBackground = true)
+@Preview(name = "记账浏览 · 长金额大字体", widthDp = 320, heightDp = 650, fontScale = 1.5f, showBackground = true)
+@Composable
+private fun AccountingBrowseEntriesPreview() {
+    val state = accountingBrowsePreviewState()
+    BlueTheme(darkTheme = false) {
+        LazyColumn(
+            Modifier.fillMaxSize().background(BrowseBackground),
+            contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { BrowseResultHeader(state) }
+            items(state.items, key = { it.entry.id }) { BrowseEntryCard(it, {}) }
+            item { BrowseEntryCard(state.items.last().let { it.copy(entry = it.entry.copy(amountInCents = 9_876_543_210_000L, name = "年度项目收入")) }, {}) }
+        }
+    }
+}
+
+@Preview(name = "记账浏览 · 暂无结果", widthDp = 390, heightDp = 1100, showBackground = true)
+@Composable
+private fun AccountingBrowseEmptyPreview() {
+    BlueTheme(darkTheme = false) {
+        AccountingBrowseContent(
+            accountingBrowsePreviewState().copy(items = emptyList(), totalCount = 0, selectedYear = null),
+            rememberLazyListState(), BrowseUiActions(), {}, showTopBar = true,
+        )
     }
 }

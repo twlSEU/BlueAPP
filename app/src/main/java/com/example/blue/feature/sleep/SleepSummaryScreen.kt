@@ -1,14 +1,8 @@
 package com.example.blue.feature.sleep
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,63 +16,71 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.blue.R
 import com.example.blue.core.util.SleepDateRules
 import com.example.blue.data.local.entity.SleepRecordEntity
+import com.example.blue.data.local.entity.SleepSource
 import com.example.blue.data.repository.SleepRepository
-import com.example.blue.feature.common.AppBackButton
+import com.example.blue.feature.common.FeatureHubScreen
+import com.example.blue.feature.common.RefinedBackground
+import com.example.blue.feature.common.RefinedCard
+import com.example.blue.feature.common.RefinedInk
+import com.example.blue.feature.common.RefinedMetric
+import com.example.blue.feature.common.RefinedMuted
+import com.example.blue.feature.common.RefinedPeriodSelector
+import com.example.blue.feature.common.RefinedSegmentedControl
+import com.example.blue.feature.common.RefinedTopBar
+import com.example.blue.feature.common.RefinedViolet
 import com.example.blue.feature.common.appScaffoldContentWindowInsets
+import com.example.blue.ui.theme.BlueTheme
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
-private val SleepCalendarBackground = Color(0xFFF6F8FC)
-private val SleepCalendarSurface = Color(0xFFFEFFFF)
-private val SleepCalendarText = Color(0xFF2D4555)
-private val SleepCalendarMuted = Color(0xFF748895)
-private val SleepCalendarAccent = Color(0xFF637FC3)
+private val SleepCalendarBackground = RefinedBackground
+private val SleepCalendarText = RefinedInk
+private val SleepCalendarMuted = RefinedMuted
+private val SleepCalendarAccent = RefinedViolet
 private val SleepHeatColors = listOf(
-    Color(0xFFDDECE4),
-    Color(0xFFCEE3D8),
-    Color(0xFFFFE2B8),
-    Color(0xFFF5C68E),
-    Color(0xFFE99B79),
-    Color(0xFFD86F6F),
+    Color(0xFFDCF3E8),
+    Color(0xFFC9ECDD),
+    Color(0xFFFFF2C9),
+    Color(0xFFFFE5CE),
+    Color(0xFFFFDBCF),
+    Color(0xFFF6CBD4),
 )
 private val weekLabels = listOf("一", "二", "三", "四", "五", "六", "日")
 private val sleepTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private data class SleepPeriodLabel(val key: Long, val text: String)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SleepSummaryScreen(
     repository: SleepRepository,
@@ -93,81 +95,84 @@ fun SleepSummaryScreen(
     )
     val state by summaryViewModel.uiState.collectAsStateWithLifecycle()
     val selection by summaryViewModel.selection.collectAsStateWithLifecycle()
-    val period = remember(selection.mode, selection.selectedMonth, selection.selectedYear) {
-        if (selection.mode == SleepSummaryMode.MONTH) {
-            SleepPeriodLabel(
-                key = selection.selectedMonth.year * 12L + selection.selectedMonth.monthValue,
-                text = "${selection.selectedMonth.year}年${selection.selectedMonth.monthValue}月",
-            )
-        } else {
-            SleepPeriodLabel(
-                key = selection.selectedYear.toLong(),
-                text = "${selection.selectedYear}年",
-            )
-        }
+    SleepSummaryContent(
+        selection = selection, state = state,
+        onSetMode = summaryViewModel::setMode,
+        onPrevious = summaryViewModel::previousPeriod, onNext = summaryViewModel::nextPeriod,
+        onRetry = summaryViewModel::retry, onOpenMonth = summaryViewModel::openMonth,
+        onOpenDay = onOpenDay, onBack = onBack, modifier = modifier, showTopBar = showTopBar,
+    )
+}
+
+@Composable
+private fun SleepSummaryContent(
+    selection: SleepSummarySelection,
+    state: SleepSummaryUiState,
+    onSetMode: (SleepSummaryMode) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onRetry: () -> Unit,
+    onOpenMonth: (YearMonth) -> Unit,
+    onOpenDay: (LocalDate) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    showTopBar: Boolean,
+) {
+    val period = if (selection.mode == SleepSummaryMode.MONTH) {
+        "${selection.selectedMonth.year}年${selection.selectedMonth.monthValue}月"
+    } else {
+        "${selection.selectedYear}年"
     }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = SleepCalendarBackground,
-        topBar = {
-            if (showTopBar) {
-                CenterAlignedTopAppBar(
-                    title = { Text("睡眠总结", fontWeight = FontWeight.SemiBold, color = SleepCalendarText) },
-                    navigationIcon = { AppBackButton(onClick = onBack) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = SleepCalendarBackground,
-                        scrolledContainerColor = SleepCalendarBackground,
-                    ),
-                )
-            }
-        },
+        topBar = { if (showTopBar) RefinedTopBar("睡眠总结", onBack) },
         contentWindowInsets = appScaffoldContentWindowInsets(showTopBar),
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
-            SleepModeSegment(
-                selected = selection.mode,
-                onSelected = summaryViewModel::setMode,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-            )
-            SleepPeriodSelector(
-                period = period,
-                onPrevious = summaryViewModel::previousPeriod,
-                onNext = summaryViewModel::nextPeriod,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-            )
-            // Month and year pages contain large lazy trees. Keeping both trees alive during an
-            // AnimatedContent transition makes a mode switch do duplicate composition/layout work.
-            // The period label still carries the directional motion cue below; swap the heavy page
-            // directly so the first frame after a tap stays within the frame budget.
-            Box(modifier = Modifier.weight(1f)) {
-                when (val contentState = state) {
-                    SleepSummaryUiState.Loading -> {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = SleepCalendarAccent)
-                        }
-                    }
-                    is SleepSummaryUiState.Error -> {
-                        SummaryErrorState(contentState.message, summaryViewModel::retry)
-                    }
-                    is SleepSummaryUiState.Ready -> {
-                        if (
-                            selection.mode == SleepSummaryMode.MONTH &&
-                            contentState.mode == SleepSummaryMode.MONTH
-                        ) {
-                            SleepMonthlyContent(contentState, onOpenDay)
-                        } else if (contentState.mode == SleepSummaryMode.YEAR) {
-                            SleepAnnualContent(
-                                year = contentState.selectedYear,
-                                records = contentState.records,
-                                onOpenDay = onOpenDay,
-                                onOpenMonth = summaryViewModel::openMonth,
-                            )
-                        } else {
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
+            ) {
+                SleepModeSegment(
+                    selected = selection.mode,
+                    onSelected = onSetMode,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+                RefinedPeriodSelector(
+                    label = period,
+                    onPrevious = onPrevious,
+                    onNext = onNext,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                )
+                // Keep only the active calendar tree composed when switching modes.
+                Box(modifier = Modifier.weight(1f)) {
+                    when (val contentState = state) {
+                        SleepSummaryUiState.Loading -> {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = SleepCalendarAccent)
+                            }
+                        }
+                        is SleepSummaryUiState.Error -> {
+                            SummaryErrorState(contentState.message, onRetry)
+                        }
+                        is SleepSummaryUiState.Ready -> {
+                            if (
+                                selection.mode == SleepSummaryMode.MONTH &&
+                                contentState.mode == SleepSummaryMode.MONTH
+                            ) {
+                                SleepMonthlyContent(contentState, onOpenDay)
+                            } else if (contentState.mode == SleepSummaryMode.YEAR) {
+                                SleepAnnualContent(
+                                    year = contentState.selectedYear,
+                                    records = contentState.records,
+                                    onOpenDay = onOpenDay,
+                                    onOpenMonth = onOpenMonth,
+                                )
+                            } else {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = SleepCalendarAccent)
+                                }
                             }
                         }
                     }
@@ -183,85 +188,12 @@ private fun SleepModeSegment(
     onSelected: (SleepSummaryMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xFFE8EDF4),
-    ) {
-        Row(modifier = Modifier.padding(4.dp)) {
-            SleepModeButton(
-                label = "月度",
-                selected = selected == SleepSummaryMode.MONTH,
-                onClick = { onSelected(SleepSummaryMode.MONTH) },
-                modifier = Modifier.weight(1f),
-            )
-            SleepModeButton(
-                label = "年度",
-                selected = selected == SleepSummaryMode.YEAR,
-                onClick = { onSelected(SleepSummaryMode.YEAR) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SleepModeButton(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(42.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = if (selected) Color.White else Color.Transparent,
-        shadowElevation = if (selected) 2.dp else 0.dp,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                label,
-                color = if (selected) SleepCalendarText else SleepCalendarMuted,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SleepPeriodSelector(
-    period: SleepPeriodLabel,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        TextButton(onClick = onPrevious, modifier = Modifier.size(48.dp)) {
-            Text("‹", style = MaterialTheme.typography.headlineMedium, color = SleepCalendarAccent)
-        }
-        AnimatedContent(
-            targetState = period,
-            transitionSpec = {
-                val direction = if (targetState.key > initialState.key) 1 else -1
-                (fadeIn(tween(180)) + slideInHorizontally(tween(220)) { width -> direction * width / 4 })
-                    .togetherWith(
-                        fadeOut(tween(160)) +
-                            slideOutHorizontally(tween(200)) { width -> -direction * width / 4 },
-                    )
-            },
-            label = "Sleep period",
-        ) { displayedPeriod ->
-            Text(
-                displayedPeriod.text,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = SleepCalendarText,
-            )
-        }
-        TextButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
-            Text("›", style = MaterialTheme.typography.headlineMedium, color = SleepCalendarAccent)
-        }
-    }
+    RefinedSegmentedControl(
+        options = listOf("月度", "年度"),
+        selectedIndex = if (selected == SleepSummaryMode.MONTH) 0 else 1,
+        onSelected = { onSelected(if (it == 0) SleepSummaryMode.MONTH else SleepSummaryMode.YEAR) },
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -271,9 +203,10 @@ private fun SleepMonthlyContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 34.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        item(key = "stats", contentType = "statistics") { SleepMonthSummaryCard(state.monthStatistics) }
         item(key = "calendar", contentType = "calendar") {
             SleepMonthCalendar(
                 yearMonth = state.selectedMonth,
@@ -295,9 +228,6 @@ private fun SleepMonthlyContent(
                 )
             }
         }
-        item(key = "stats", contentType = "statistics") {
-            SleepMonthSummaryCard(state.monthStatistics)
-        }
     }
 }
 
@@ -313,14 +243,9 @@ private fun SleepMonthCalendar(
         val blanks = List(yearMonth.atDay(1).dayOfWeek.value - 1) { null }
         (blanks + (1..yearMonth.lengthOfMonth()).map(yearMonth::atDay)).padCalendarCells()
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = SleepCalendarSurface),
-        border = BorderStroke(1.dp, Color(0xFFDCE7EE)),
-        elevation = CardDefaults.cardElevation(2.dp),
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    val cellAspectRatio = if (LocalDensity.current.fontScale > 1.2f) 0.68f else 0.9f
+    RefinedCard(title = "入睡日历", iconRes = R.drawable.ic_calendar, accent = SleepCalendarAccent) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 weekLabels.forEach { label ->
                     Text(
@@ -336,14 +261,14 @@ private fun SleepMonthCalendar(
                 Row(Modifier.fillMaxWidth()) {
                     week.forEach { date ->
                         if (date == null) {
-                            Spacer(Modifier.weight(1f).aspectRatio(0.76f))
+                            Spacer(Modifier.weight(1f).aspectRatio(cellAspectRatio))
                         } else {
                             SleepCalendarDayCell(
                                 date = date,
                                 record = byDate[date],
                                 today = today,
                                 onClick = { onOpenDay(date) },
-                                modifier = Modifier.weight(1f).aspectRatio(0.76f),
+                                modifier = Modifier.weight(1f).aspectRatio(cellAspectRatio),
                             )
                         }
                     }
@@ -363,28 +288,36 @@ private fun SleepCalendarDayCell(
 ) {
     val future = date.isAfter(today)
     val level = record?.sleepDateTime?.toLocalTime()?.let(SleepDateRules::latenessLevel)
-    val background = level?.let(SleepHeatColors::get) ?: Color.Transparent
+    val background = level?.let(SleepHeatColors::get) ?: Color(0xFFF3F6FB)
     Box(
         modifier = modifier
             .padding(2.dp)
-            .background(background, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .then(if (date == today) Modifier.border(1.dp, SleepCalendarAccent.copy(alpha = 0.6f), RoundedCornerShape(10.dp)) else Modifier)
             .clickable(enabled = !future, onClick = onClick)
-            .padding(vertical = 5.dp, horizontal = 1.dp),
+            .padding(vertical = 3.dp, horizontal = 1.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 11.sp, lineHeight = 14.sp,
+                maxLines = 1, softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
+                textAlign = TextAlign.Center,
                 fontWeight = FontWeight.SemiBold,
                 color = if (future) Color(0xFFC6D0D7) else SleepCalendarText,
             )
             record?.let {
                 Text(
                     it.sleepDateTime.toLocalTime().format(sleepTimeFormatter),
-                    fontSize = 9.sp,
-                    maxLines = 1,
-                    color = if (level != null && level >= 4) Color.White else SleepCalendarText,
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 9.sp, lineHeight = 12.sp,
+                    maxLines = 1, softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 9.sp, stepSize = 0.5.sp),
+                    textAlign = TextAlign.Center, color = SleepCalendarText,
                 )
             }
         }
@@ -393,18 +326,20 @@ private fun SleepCalendarDayCell(
 
 @Composable
 private fun SleepMonthSummaryCard(stats: SleepMonthStatistics) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = SleepCalendarSurface),
-        border = BorderStroke(1.dp, Color(0xFFDCE7EE)),
-    ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("本月总结", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = SleepCalendarText)
-            SleepMetricRow("记录天数", "${stats.recordedDays} 天", "平均睡觉时间", stats.averageBedtime.displayTime())
-            SleepMetricRow("最早睡觉", stats.earliestBedtime.displayTime(), "最晚睡觉", stats.latestBedtime.displayTime())
-            SleepMetricRow("熬夜天数", "${stats.lateNightDays} 天", "判定标准", "00:00 后")
+    RefinedCard(title = "本月总结", iconRes = R.drawable.ic_sleep, accent = SleepCalendarAccent) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("平均睡觉时间", fontSize = 12.sp, color = SleepCalendarMuted)
+            Text(
+                stats.averageBedtime.displayTime(),
+                modifier = Modifier.fillMaxWidth(), fontSize = 36.sp, lineHeight = 44.sp,
+                fontWeight = FontWeight.SemiBold, color = SleepCalendarAccent,
+                maxLines = 1, softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 36.sp, stepSize = 0.5.sp),
+            )
         }
+        SleepMetricRow("记录天数", "${stats.recordedDays} 天", "熬夜天数", "${stats.lateNightDays} 天")
+        SleepMetricRow("最早睡觉", stats.earliestBedtime.displayTime(), "最晚睡觉", stats.latestBedtime.displayTime())
+        Text("熬夜判定标准 · 00:00 后", fontSize = 11.sp, lineHeight = 17.sp, color = SleepCalendarMuted)
     }
 }
 
@@ -418,13 +353,7 @@ private fun SleepMetricRow(labelA: String, valueA: String, labelB: String, value
 
 @Composable
 private fun SleepMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.background(Color(0xFFF3F6FA), RoundedCornerShape(16.dp)).padding(13.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = SleepCalendarMuted)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = SleepCalendarText)
-    }
+    RefinedMetric(label, value, modifier, SleepCalendarText)
 }
 
 @Composable
@@ -437,7 +366,7 @@ private fun SleepAnnualContent(
     val byMonth = remember(records) { records.groupBy { YearMonth.from(it.recordDate) } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 34.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "annual-note", contentType = "status") {
@@ -476,20 +405,16 @@ private fun AnnualMonthHeatmap(
         (List(yearMonth.atDay(1).dayOfWeek.value - 1) { null } +
             (1..yearMonth.lengthOfMonth()).map(yearMonth::atDay)).padCalendarCells()
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = SleepCalendarSurface),
-        border = BorderStroke(1.dp, Color(0xFFDCE7EE)),
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    RefinedCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenMonth).padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("${yearMonth.monthValue}月", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = SleepCalendarText)
                 Spacer(Modifier.weight(1f))
-                Text("${records.size} 天  ›", style = MaterialTheme.typography.bodySmall, color = SleepCalendarMuted)
+                Text("${records.size} 天", fontSize = 12.sp, color = SleepCalendarMuted)
+                Icon(painterResource(R.drawable.ic_home_chevron_right), null, Modifier.padding(start = 10.dp).size(width = 8.dp, height = 14.dp), tint = SleepCalendarMuted)
             }
             cells.chunked(7).forEach { week ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -503,14 +428,18 @@ private fun AnnualMonthHeatmap(
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(1f)
-                                    .background(level?.let(SleepHeatColors::get) ?: Color(0xFFF1F4F6), RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(level?.let(SleepHeatColors::get) ?: Color(0xFFF3F6FB))
                                     .clickable(enabled = !date.isAfter(LocalDate.now())) { onOpenDay(date) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
                                     date.dayOfMonth.toString(),
-                                    fontSize = 9.sp,
-                                    color = if (level != null && level >= 4) Color.White else SleepCalendarText,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    fontSize = 9.sp, maxLines = 1, softWrap = false,
+                                    autoSize = TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 9.sp, stepSize = 0.5.sp),
+                                    textAlign = TextAlign.Center,
+                                    color = if (date.isAfter(LocalDate.now())) SleepCalendarMuted.copy(alpha = 0.4f) else SleepCalendarText,
                                 )
                             }
                         }
@@ -523,20 +452,16 @@ private fun AnnualMonthHeatmap(
 
 @Composable
 private fun SleepHeatLegend() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = SleepCalendarSurface),
-        border = BorderStroke(1.dp, Color(0xFFDCE7EE)),
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("入睡时间等级", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = SleepCalendarText)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                listOf("23前", "23–00", "00–01", "01–02", "02–03", "03后").forEachIndexed { index, label ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(Modifier.size(18.dp).background(SleepHeatColors[index], RoundedCornerShape(5.dp)))
-                        Text(label, fontSize = 9.sp, color = SleepCalendarMuted)
-                    }
+    RefinedCard(title = "入睡时间等级", iconRes = R.drawable.ic_clock, accent = SleepCalendarAccent) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf("23前", "23–00", "00–01", "01–02", "02–03", "03后").forEachIndexed { index, label ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(16.dp).background(SleepHeatColors[index], RoundedCornerShape(5.dp)))
+                    Text(
+                        label, modifier = Modifier.fillMaxWidth(), fontSize = 9.sp, lineHeight = 14.sp,
+                        textAlign = TextAlign.Center, color = SleepCalendarMuted, maxLines = 1, softWrap = false,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 9.sp, stepSize = 0.5.sp),
+                    )
                 }
             }
         }
@@ -544,20 +469,9 @@ private fun SleepHeatLegend() {
 }
 
 @Composable
-private fun SleepInfoCard(
-    title: String,
-    body: String,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5FA)),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = SleepCalendarText)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = SleepCalendarMuted)
-        }
+private fun SleepInfoCard(title: String, body: String, modifier: Modifier = Modifier) {
+    RefinedCard(modifier = modifier, title = title, iconRes = R.drawable.ic_sleep, accent = SleepCalendarAccent) {
+        Text(body, fontSize = 12.sp, lineHeight = 19.sp, color = SleepCalendarMuted)
     }
 }
 
@@ -573,7 +487,7 @@ private fun SummaryErrorState(message: String, onRetry: () -> Unit) {
             onClick = onRetry,
             modifier = Modifier.padding(top = 14.dp),
             shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = SleepCalendarAccent),
+            colors = ButtonDefaults.buttonColors(containerColor = SleepCalendarAccent.copy(alpha = 0.10f), contentColor = SleepCalendarAccent),
         ) { Text("重新加载") }
     }
 }
@@ -582,3 +496,65 @@ private fun List<LocalDate?>.padCalendarCells(): List<LocalDate?> =
     this + List((7 - size % 7) % 7) { null }
 
 private fun LocalTime?.displayTime(): String = this?.format(sleepTimeFormatter) ?: "—"
+
+private fun sleepSummaryPreviewState(mode: SleepSummaryMode, empty: Boolean = false): SleepSummaryUiState.Ready {
+    val month = YearMonth.of(2026, 9)
+    val times = listOf(LocalTime.of(22, 40), LocalTime.of(23, 20), LocalTime.of(0, 25), LocalTime.of(1, 10), LocalTime.of(2, 15), LocalTime.of(3, 10))
+    val months = if (mode == SleepSummaryMode.MONTH) listOf(9) else (1..9).toList()
+    val records = if (empty) emptyList() else months.flatMap { monthValue ->
+        (1..24).filter { it % 5 != 0 }.map { day ->
+            val date = YearMonth.of(2026, monthValue).atDay(day)
+            SleepRecordEntity(
+                id = "preview-$date", recordDate = date,
+                sleepDateTime = SleepDateRules.sleepDateTimeFor(date, times[(day + monthValue) % times.size]),
+                wakeDateTime = null, source = SleepSource.MANUAL_CONFIRMED, isEstimated = false,
+                note = null, createdAt = 0L, updatedAt = 0L,
+            )
+        }
+    }
+    val bedtimes = records.map { it.sleepDateTime.toLocalTime() }
+    return SleepSummaryUiState.Ready(
+        mode, month, 2026, records,
+        SleepMonthStatistics(
+            recordedDays = records.size, averageBedtime = SleepDateRules.averageBedtime(bedtimes),
+            earliestBedtime = bedtimes.minByOrNull(SleepDateRules::continuousMinutes),
+            latestBedtime = bedtimes.maxByOrNull(SleepDateRules::continuousMinutes),
+            lateNightDays = bedtimes.count(SleepDateRules::isLateNight),
+        ),
+    )
+}
+
+@Composable
+private fun SleepSummaryPreviewHost(mode: SleepSummaryMode, empty: Boolean = false) {
+    val state = sleepSummaryPreviewState(mode, empty)
+    BlueTheme(darkTheme = false) {
+        FeatureHubScreen(tabs = SleepHubTabs, initialPage = 1, accentColor = SleepArchiveAccent, tabStyle = SleepArchiveTabStyle) {
+            SleepSummaryContent(
+                selection = SleepSummarySelection(mode, state.selectedMonth, state.selectedYear), state = state,
+                onSetMode = {}, onPrevious = {}, onNext = {}, onRetry = {}, onOpenMonth = {},
+                onOpenDay = {}, onBack = {}, showTopBar = false,
+            )
+        }
+    }
+}
+
+@Preview(name = "睡眠总结 · 月度", widthDp = 390, heightDp = 1100, showBackground = true)
+@Preview(name = "睡眠总结 · 月度窄屏", widthDp = 320, heightDp = 1100, showBackground = true)
+@Preview(name = "睡眠总结 · 月度大字体", widthDp = 390, heightDp = 1350, fontScale = 1.5f, showBackground = true)
+@Composable
+private fun SleepMonthlySummaryPreview() {
+    SleepSummaryPreviewHost(SleepSummaryMode.MONTH)
+}
+
+@Preview(name = "睡眠总结 · 年度", widthDp = 390, heightDp = 1100, showBackground = true)
+@Preview(name = "睡眠总结 · 年度大字体", widthDp = 320, heightDp = 1200, fontScale = 1.5f, showBackground = true)
+@Composable
+private fun SleepAnnualSummaryPreview() {
+    SleepSummaryPreviewHost(SleepSummaryMode.YEAR)
+}
+
+@Preview(name = "睡眠总结 · 暂无记录", widthDp = 390, heightDp = 1200, showBackground = true)
+@Composable
+private fun SleepEmptySummaryPreview() {
+    SleepSummaryPreviewHost(SleepSummaryMode.MONTH, empty = true)
+}

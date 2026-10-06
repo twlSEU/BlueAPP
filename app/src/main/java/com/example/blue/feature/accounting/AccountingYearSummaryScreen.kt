@@ -2,7 +2,6 @@ package com.example.blue.feature.accounting
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,11 +17,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,9 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -50,28 +53,42 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.blue.R
 import com.example.blue.core.util.AmountUtils
-import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.data.repository.AccountCategoryAggregate
 import com.example.blue.data.repository.AccountMonthlyAggregate
 import com.example.blue.data.repository.AccountPeriodSummary
 import com.example.blue.data.repository.AccountRepository
-import com.example.blue.model.AccountSummary
+import com.example.blue.feature.common.FeatureHubScreen
+import com.example.blue.feature.common.FeatureHubTab
+import com.example.blue.feature.common.RefinedBackground
+import com.example.blue.feature.common.RefinedBlue
+import com.example.blue.feature.common.RefinedCard
+import com.example.blue.feature.common.RefinedCoral
+import com.example.blue.feature.common.RefinedInk
+import com.example.blue.feature.common.RefinedLine
+import com.example.blue.feature.common.RefinedMetric
+import com.example.blue.feature.common.RefinedMuted
+import com.example.blue.feature.common.RefinedPeriodSelector
+import com.example.blue.feature.common.RefinedTeal
+import com.example.blue.feature.common.RefinedTopBar
+import com.example.blue.feature.common.appScaffoldContentWindowInsets
 import com.example.blue.model.AccountType
 import com.example.blue.ui.theme.BlueTheme
 import java.time.LocalDate
 import java.time.Year
 
-private val YearSummaryBackground = Color(0xFFF6F8FC)
+private val YearSummaryBackground = RefinedBackground
 private val YearSummarySurface = Color(0xFFFEFFFF)
-private val YearSummaryText = Color(0xFF2D4555)
-private val YearSummaryMuted = Color(0xFF748895)
-private val YearSummaryAccent = Color(0xFF3D7BE5)
-private val YearSummaryBorder = Color(0xFFDCE7EE)
-private val YearSummaryIncome = Color(0xFF3F8D78)
-private val YearSummaryExpense = Color(0xFFC96868)
+private val YearSummaryText = RefinedInk
+private val YearSummaryMuted = RefinedMuted
+private val YearSummaryAccent = RefinedBlue
+private val YearSummaryBorder = RefinedLine
+private val YearSummaryIncome = RefinedTeal
+private val YearSummaryExpense = RefinedCoral
 
 @Composable
 fun AccountingYearSummaryScreen(
@@ -85,131 +102,167 @@ fun AccountingYearSummaryScreen(
     )
     val uiState by summaryViewModel.uiState.collectAsStateWithLifecycle()
 
+    AccountingYearSummaryContent(
+        uiState = uiState,
+        onYearChange = { if (it >= MIN_SUPPORTED_YEAR) summaryViewModel.selectYear(it) },
+        onRetry = summaryViewModel::retry, onBack = onBack, showTopBar = showTopBar,
+    )
+}
+
+@Composable
+private fun AccountingYearSummaryContent(
+    uiState: AccountingYearSummaryUiState,
+    onYearChange: (Int) -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    showTopBar: Boolean,
+) {
     Scaffold(
         containerColor = YearSummaryBackground,
-        topBar = { if (showTopBar) AccountTopBar(title = "年度总结", onBack = onBack) },
+        topBar = { if (showTopBar) RefinedTopBar(title = "年度总结", onBack = onBack) },
         contentWindowInsets = appScaffoldContentWindowInsets(showTopBar),
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item(key = "year-selector") {
-                AccountYearSelector(
-                    year = uiState.year,
-                    canMoveForward = uiState.year < LocalDate.now().year,
-                    onYearChange = { selected ->
-                        if (selected >= MIN_SUPPORTED_YEAR) summaryViewModel.selectYear(selected)
-                    },
-                )
-            }
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 34.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item(key = "year-selector") {
+                    RefinedPeriodSelector(
+                        label = "${uiState.year}年",
+                        canMoveForward = uiState.year < LocalDate.now().year,
+                        onPrevious = { onYearChange(uiState.year - 1) },
+                        onNext = { onYearChange(uiState.year + 1) },
+                    )
+                }
 
-            when {
-                uiState.isLoading -> {
-                    item(key = "year-loading") {
-                        YearSummaryStateCard(
-                            title = "正在生成年度总结",
-                            message = "聚合全年账目，不会读取无关历史记录。",
-                            loading = true,
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(180),
-                                placementSpec = tween(220),
-                                fadeOutSpec = tween(180),
-                            ),
-                        )
-                    }
-                }
-                uiState.errorMessage != null -> {
-                    item(key = "year-error") {
-                        YearSummaryErrorCard(
-                            message = uiState.errorMessage.orEmpty(),
-                            onRetry = summaryViewModel::retry,
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(180),
-                                placementSpec = tween(220),
-                                fadeOutSpec = tween(180),
-                            ),
-                        )
-                    }
-                }
-                uiState.isEmpty -> {
-                    item(key = "year-empty") {
-                        YearSummaryStateCard(
-                            title = "${uiState.year}年还没有账目",
-                            message = "记录第一笔收支后，这里会自动生成总结。",
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(180),
-                                placementSpec = tween(220),
-                                fadeOutSpec = tween(180),
-                            ),
-                        )
-                    }
-                }
-                else -> {
-                    val summary = requireNotNull(uiState.summary)
-                    item(key = "year-total") {
-                        AccountSummaryCard(
-                            title = "全年汇总",
-                            supportingText = "${summary.entryCount} 笔账目 · ${summary.recordDays} 个记账日",
-                            summary = AccountSummary(
-                                incomeInCents = summary.incomeInCents,
-                                expenseInCents = summary.expenseInCents,
-                            ),
-                        )
-                    }
-                    item(key = "year-month-chart") {
-                        MonthlyCashFlowCard(months = uiState.months)
-                    }
-                    item(key = "year-highlights") {
-                        val highestExpenseMonth = uiState.months
-                            .filter { it.expenseInCents > 0L }
-                            .maxByOrNull { it.expenseInCents }
-                        val largestExpenseCategory = uiState.categories
-                            .filter { it.type == AccountType.EXPENSE && it.totalInCents > 0L }
-                            .maxByOrNull { it.totalInCents }
-                        YearHighlightsCard(
-                            highestExpenseMonth = highestExpenseMonth,
-                            largestExpenseCategory = largestExpenseCategory,
-                            largestExpenseInCents = summary.largestExpenseInCents,
-                        )
-                    }
-                    item(key = "year-record-stats") {
-                        val monthDivisor = if (uiState.year == LocalDate.now().year) {
-                            LocalDate.now().monthValue
-                        } else {
-                            12
+                when {
+                    uiState.isLoading -> {
+                        item(key = "year-loading") {
+                            YearSummaryStateCard(
+                                title = "正在生成年度总结",
+                                message = "聚合全年账目，不会读取无关历史记录。",
+                                loading = true,
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(180),
+                                    placementSpec = tween(220),
+                                    fadeOutSpec = tween(180),
+                                ),
+                            )
                         }
-                        val dayDivisor = if (uiState.year == LocalDate.now().year) {
-                            LocalDate.now().dayOfYear
-                        } else {
-                            Year.of(uiState.year).length()
+                    }
+                    uiState.errorMessage != null -> {
+                        item(key = "year-error") {
+                            YearSummaryErrorCard(
+                                message = uiState.errorMessage.orEmpty(),
+                                onRetry = onRetry,
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(180),
+                                    placementSpec = tween(220),
+                                    fadeOutSpec = tween(180),
+                                ),
+                            )
                         }
-                        YearRecordStatsCard(
-                            entryCount = summary.entryCount,
-                            recordDays = summary.recordDays,
-                            monthlyAverageInCents = roundedAverage(summary.expenseInCents, monthDivisor),
-                            dailyAverageInCents = roundedAverage(summary.expenseInCents, dayDivisor),
-                        )
                     }
-                    item(key = "expense-categories") {
-                        CategoryShareCard(
-                            title = "支出分类占比",
-                            emptyText = "本年没有支出记录",
-                            categories = uiState.categories.filter { it.type == AccountType.EXPENSE },
-                            accent = YearSummaryExpense,
-                        )
+                    uiState.isEmpty -> {
+                        item(key = "year-empty") {
+                            YearSummaryStateCard(
+                                title = "${uiState.year}年还没有账目",
+                                message = "记录第一笔收支后，这里会自动生成总结。",
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(180),
+                                    placementSpec = tween(220),
+                                    fadeOutSpec = tween(180),
+                                ),
+                            )
+                        }
                     }
-                    item(key = "income-categories") {
-                        CategoryShareCard(
-                            title = "收入分类占比",
-                            emptyText = "本年没有收入记录",
-                            categories = uiState.categories.filter { it.type == AccountType.INCOME },
-                            accent = YearSummaryIncome,
-                        )
+                    else -> {
+                        val summary = requireNotNull(uiState.summary)
+                        item(key = "year-total") {
+                            YearTotalsCard(summary)
+                        }
+                        item(key = "year-month-chart") {
+                            MonthlyCashFlowCard(months = uiState.months)
+                        }
+                        item(key = "year-highlights") {
+                            val highestExpenseMonth = uiState.months
+                                .filter { it.expenseInCents > 0L }
+                                .maxByOrNull { it.expenseInCents }
+                            val largestExpenseCategory = uiState.categories
+                                .filter { it.type == AccountType.EXPENSE && it.totalInCents > 0L }
+                                .maxByOrNull { it.totalInCents }
+                            YearHighlightsCard(
+                                highestExpenseMonth = highestExpenseMonth,
+                                largestExpenseCategory = largestExpenseCategory,
+                                largestExpenseInCents = summary.largestExpenseInCents,
+                            )
+                        }
+                        item(key = "year-record-stats") {
+                            val monthDivisor = if (uiState.year == LocalDate.now().year) {
+                                LocalDate.now().monthValue
+                            } else {
+                                12
+                            }
+                            val dayDivisor = if (uiState.year == LocalDate.now().year) {
+                                LocalDate.now().dayOfYear
+                            } else {
+                                Year.of(uiState.year).length()
+                            }
+                            YearRecordStatsCard(
+                                entryCount = summary.entryCount,
+                                recordDays = summary.recordDays,
+                                monthlyAverageInCents = roundedAverage(summary.expenseInCents, monthDivisor),
+                                dailyAverageInCents = roundedAverage(summary.expenseInCents, dayDivisor),
+                            )
+                        }
+                        item(key = "expense-categories") {
+                            CategoryShareCard(
+                                title = "支出分类占比",
+                                emptyText = "本年没有支出记录",
+                                categories = uiState.categories.filter { it.type == AccountType.EXPENSE },
+                                accent = YearSummaryExpense,
+                            )
+                        }
+                        item(key = "income-categories") {
+                            CategoryShareCard(
+                                title = "收入分类占比",
+                                emptyText = "本年没有收入记录",
+                                categories = uiState.categories.filter { it.type == AccountType.INCOME },
+                                accent = YearSummaryIncome,
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun YearTotalsCard(summary: AccountPeriodSummary) {
+    val expense = "¥${AmountUtils.formatCents(summary.expenseInCents)}"
+    val longAmount = expense.length > 14
+    RefinedCard(
+        title = "全年汇总", subtitle = "${summary.entryCount} 笔账目 · ${summary.recordDays} 个记账日",
+        iconRes = R.drawable.ic_accounting,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("全年支出", fontSize = 12.sp, color = YearSummaryMuted)
+            Text(
+                if (longAmount) expense.replace(",", ",\u200B") else expense,
+                modifier = Modifier.fillMaxWidth(), fontSize = 38.sp, lineHeight = 46.sp,
+                fontWeight = FontWeight.SemiBold, color = YearSummaryText,
+                maxLines = if (longAmount) 2 else 1, softWrap = longAmount,
+                autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 38.sp, stepSize = 0.5.sp),
+            )
+        }
+        HorizontalDivider(color = YearSummaryBorder)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            RefinedMetric("全年收入", "¥${AmountUtils.formatCents(summary.incomeInCents)}", Modifier.weight(1f), YearSummaryIncome)
+            val balance = summary.incomeInCents - summary.expenseInCents
+            RefinedMetric("全年结余", "¥${AmountUtils.formatCents(balance)}", Modifier.weight(1f), if (balance < 0) YearSummaryExpense else YearSummaryText)
         }
     }
 }
@@ -235,6 +288,7 @@ private fun MonthlyCashFlowCard(months: List<AccountMonthlyAggregate>) {
         animationSpec = tween(280),
         label = "Annual accounting chart reveal",
     )
+    val visibleReveal = if (LocalInspectionMode.current) 1f else reveal
     val maximum = allMonths.maxOfOrNull { maxOf(it.incomeInCents, it.expenseInCents) }?.coerceAtLeast(1L) ?: 1L
 
     YearSummaryCard(title = "每月收支", supportingText = "绿色为收入，红色为支出；下方显示每月结余") {
@@ -252,6 +306,10 @@ private fun MonthlyCashFlowCard(months: List<AccountMonthlyAggregate>) {
             val chartHeight = baselineY - 10.dp.toPx()
             val groupWidth = size.width / 12f
             val barWidth = (groupWidth * 0.24f).coerceAtLeast(3.dp.toPx())
+            repeat(3) { level ->
+                val y = baselineY - chartHeight * (level + 1) / 3f
+                drawLine(YearSummaryBorder.copy(alpha = 0.7f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+            }
             drawLine(
                 color = YearSummaryBorder,
                 start = Offset(0f, baselineY),
@@ -260,20 +318,22 @@ private fun MonthlyCashFlowCard(months: List<AccountMonthlyAggregate>) {
             )
             allMonths.forEachIndexed { index, item ->
                 val center = groupWidth * index + groupWidth / 2f
-                val incomeHeight = chartHeight * (item.incomeInCents.toDouble() / maximum.toDouble()).toFloat() * reveal
-                val expenseHeight = chartHeight * (item.expenseInCents.toDouble() / maximum.toDouble()).toFloat() * reveal
+                val incomeHeight = chartHeight * (item.incomeInCents.toDouble() / maximum.toDouble()).toFloat() * visibleReveal
+                val expenseHeight = chartHeight * (item.expenseInCents.toDouble() / maximum.toDouble()).toFloat() * visibleReveal
                 if (incomeHeight > 0f) {
                     drawRoundRect(
-                        color = YearSummaryIncome,
+                        color = YearSummaryIncome.copy(alpha = 0.76f),
                         topLeft = Offset(center - barWidth - 1.dp.toPx(), baselineY - incomeHeight),
                         size = Size(barWidth, incomeHeight),
+                        cornerRadius = CornerRadius(3.dp.toPx()),
                     )
                 }
                 if (expenseHeight > 0f) {
                     drawRoundRect(
-                        color = YearSummaryExpense,
+                        color = YearSummaryExpense.copy(alpha = 0.76f),
                         topLeft = Offset(center + 1.dp.toPx(), baselineY - expenseHeight),
                         size = Size(barWidth, expenseHeight),
+                        cornerRadius = CornerRadius(3.dp.toPx()),
                     )
                 }
             }
@@ -374,22 +434,7 @@ private fun YearRecordStatsCard(
 
 @Composable
 private fun YearMetricTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .background(Color(0xFFF6F9FB), RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 13.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = YearSummaryMuted)
-        Text(
-            value,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = YearSummaryText,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    RefinedMetric(label, value, modifier)
 }
 
 @Composable
@@ -426,13 +471,13 @@ private fun CategoryShareCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
-                        .background(accent.copy(alpha = 0.10f), CircleShape),
+                        .height(6.dp)
+                        .background(accent.copy(alpha = 0.07f), CircleShape),
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(fraction.coerceAtLeast(0.012f))
-                            .height(8.dp)
+                            .height(6.dp)
                             .background(accent.copy(alpha = 0.82f - index * 0.08f), CircleShape),
                     )
                 }
@@ -462,30 +507,20 @@ private fun YearSummaryCard(
     supportingText: String,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = YearSummarySurface),
-        border = BorderStroke(1.dp, YearSummaryBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 19.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = YearSummaryText,
-                )
-                Text(supportingText, style = MaterialTheme.typography.bodySmall, color = YearSummaryMuted)
-            }
-            HorizontalDivider(color = Color(0xFFEDF1F4))
-            content()
-        }
-    }
+    RefinedCard(
+        title = title, subtitle = supportingText,
+        iconRes = when (title) {
+            "每月收支" -> R.drawable.ic_calendar
+            "年度亮点" -> R.drawable.ic_tag
+            else -> R.drawable.ic_accounting
+        },
+        accent = when {
+            title.startsWith("收入") -> YearSummaryIncome
+            title.startsWith("支出") -> YearSummaryExpense
+            else -> YearSummaryAccent
+        },
+        content = content,
+    )
 }
 
 @Composable
@@ -498,6 +533,7 @@ private fun YearDetailRow(label: String, value: String, showDivider: Boolean = t
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = YearSummaryMuted)
         Text(
             value,
+            modifier = Modifier.weight(1.15f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = YearSummaryText,
@@ -520,7 +556,6 @@ private fun YearSummaryStateCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = YearSummarySurface),
-        border = BorderStroke(1.dp, YearSummaryBorder),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 36.dp),
@@ -553,7 +588,6 @@ private fun YearSummaryErrorCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4F3)),
-        border = BorderStroke(1.dp, YearSummaryExpense.copy(alpha = 0.25f)),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
@@ -564,7 +598,7 @@ private fun YearSummaryErrorCard(
             Button(
                 onClick = onRetry,
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = YearSummaryExpense),
+                colors = ButtonDefaults.buttonColors(containerColor = YearSummaryExpense.copy(alpha = 0.10f), contentColor = YearSummaryExpense),
             ) {
                 Text("重新加载")
             }
@@ -579,98 +613,67 @@ private fun roundedAverage(totalInCents: Long, divisor: Int): Long {
     return quotient + if (remainder * 2L >= divisor) 1L else 0L
 }
 
-@Preview(
-    name = "记账 · 年度总结",
-    showBackground = true,
-    showSystemUi = true,
-    widthDp = 390,
-    heightDp = 1000,
-)
+private fun accountingSummaryPreviewState(): AccountingYearSummaryUiState {
+    val months = (1..9).map { month ->
+        AccountMonthlyAggregate(month, 640_000L + month * 8_000L, 220_000L + month * 17_000L, 16 + month, 10 + month)
+    }
+    val income = months.sumOf { it.incomeInCents }
+    val expense = months.sumOf { it.expenseInCents }
+    val categories = listOf(
+        AccountCategoryAggregate("dining", "餐饮", AccountType.EXPENSE, expense * 30 / 100, 68),
+        AccountCategoryAggregate("housing", "居住", AccountType.EXPENSE, expense * 27 / 100, 9),
+        AccountCategoryAggregate("shopping", "购物", AccountType.EXPENSE, expense * 18 / 100, 24),
+        AccountCategoryAggregate("transport", "交通", AccountType.EXPENSE, expense * 12 / 100, 42),
+        AccountCategoryAggregate("other", "其他", AccountType.EXPENSE, expense * 13 / 100, 18),
+        AccountCategoryAggregate("salary", "工资", AccountType.INCOME, income * 95 / 100, 9),
+        AccountCategoryAggregate("bonus", "奖金", AccountType.INCOME, income * 5 / 100, 2),
+    )
+    return AccountingYearSummaryUiState(
+        year = 2026, isLoading = false,
+        summary = AccountPeriodSummary(income, expense, months.sumOf { it.entryCount }, months.sumOf { it.recordDays }, 168_000L),
+        months = months, categories = categories,
+    )
+}
+
+@Preview(name = "记账总结 · 标准手机", widthDp = 390, heightDp = 1050, showBackground = true)
+@Preview(name = "记账总结 · 窄屏", widthDp = 320, heightDp = 1050, showBackground = true)
+@Preview(name = "记账总结 · 大字体", widthDp = 390, heightDp = 1300, fontScale = 1.5f, showBackground = true)
 @Composable
 private fun AccountingYearSummaryScreenPreview() {
-    val summary = AccountPeriodSummary(
-        incomeInCents = 6_180_000L,
-        expenseInCents = 2_436_800L,
-        entryCount = 186,
-        recordDays = 112,
-        largestExpenseInCents = 368_000L,
-    )
-    val months = (1..7).map { month ->
-        AccountMonthlyAggregate(
-            month = month,
-            incomeInCents = 850_000L + month * 6_000L,
-            expenseInCents = 260_000L + month * 21_000L,
-            entryCount = 20 + month,
-            recordDays = 12 + month,
-        )
-    }
-    val categories = listOf(
-        AccountCategoryAggregate("dining", "餐饮", AccountType.EXPENSE, 728_000L, 68),
-        AccountCategoryAggregate("housing", "居住", AccountType.EXPENSE, 650_000L, 7),
-        AccountCategoryAggregate("shopping", "购物", AccountType.EXPENSE, 438_000L, 24),
-        AccountCategoryAggregate("transport", "交通", AccountType.EXPENSE, 286_000L, 42),
-        AccountCategoryAggregate("salary", "工资", AccountType.INCOME, 5_950_000L, 7),
-        AccountCategoryAggregate("bonus", "奖金", AccountType.INCOME, 230_000L, 2),
-    )
-    val highestExpenseMonth = months.maxByOrNull { it.expenseInCents }
-    val largestExpenseCategory = categories
-        .filter { it.type == AccountType.EXPENSE }
-        .maxByOrNull { it.totalInCents }
-
-    BlueTheme(dynamicColor = false) {
-        Scaffold(
-            containerColor = YearSummaryBackground,
-            topBar = { AccountTopBar(title = "年度总结", onBack = {}) },
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                item {
-                    AccountYearSelector(year = 2026, canMoveForward = false, onYearChange = {})
-                }
-                item {
-                    AccountSummaryCard(
-                        title = "全年汇总",
-                        supportingText = "${summary.entryCount} 笔账目 · ${summary.recordDays} 个记账日",
-                        summary = AccountSummary(summary.incomeInCents, summary.expenseInCents),
-                    )
-                }
-                item { MonthlyCashFlowCard(months) }
-                item {
-                    YearHighlightsCard(
-                        highestExpenseMonth = highestExpenseMonth,
-                        largestExpenseCategory = largestExpenseCategory,
-                        largestExpenseInCents = summary.largestExpenseInCents,
-                    )
-                }
-                item {
-                    YearRecordStatsCard(
-                        entryCount = summary.entryCount,
-                        recordDays = summary.recordDays,
-                        monthlyAverageInCents = roundedAverage(summary.expenseInCents, 7),
-                        dailyAverageInCents = roundedAverage(summary.expenseInCents, 213),
-                    )
-                }
-                item {
-                    CategoryShareCard(
-                        title = "支出分类占比",
-                        emptyText = "本年没有支出记录",
-                        categories = categories.filter { it.type == AccountType.EXPENSE },
-                        accent = YearSummaryExpense,
-                    )
-                }
-                item {
-                    CategoryShareCard(
-                        title = "收入分类占比",
-                        emptyText = "本年没有收入记录",
-                        categories = categories.filter { it.type == AccountType.INCOME },
-                        accent = YearSummaryIncome,
-                    )
-                }
-            }
+    BlueTheme(darkTheme = false) {
+        FeatureHubScreen(
+            tabs = listOf(FeatureHubTab("archive", "年月"), FeatureHubTab("browse", "浏览"), FeatureHubTab("summary", "总结")),
+            initialPage = 2, accentColor = AccountingArchiveAccent, tabStyle = AccountingArchiveTabStyle,
+        ) {
+            AccountingYearSummaryContent(accountingSummaryPreviewState(), {}, {}, {}, showTopBar = false)
         }
+    }
+}
+
+@Preview(name = "记账总结 · 分类与记录", widthDp = 390, heightDp = 1100, showBackground = true)
+@Preview(name = "记账总结 · 分类大字体", widthDp = 320, heightDp = 1300, fontScale = 1.5f, showBackground = true)
+@Composable
+private fun AccountingSummaryCategoriesPreview() {
+    val state = accountingSummaryPreviewState()
+    val summary = requireNotNull(state.summary)
+    BlueTheme(darkTheme = false) {
+        LazyColumn(
+            Modifier.fillMaxSize().background(YearSummaryBackground),
+            contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item { YearHighlightsCard(state.months.maxByOrNull { it.expenseInCents }, state.categories.filter { it.type == AccountType.EXPENSE }.maxByOrNull { it.totalInCents }, summary.largestExpenseInCents) }
+            item { YearRecordStatsCard(summary.entryCount, summary.recordDays, roundedAverage(summary.expenseInCents, 9), roundedAverage(summary.expenseInCents, 273)) }
+            item { CategoryShareCard("支出分类占比", "本年没有支出记录", state.categories.filter { it.type == AccountType.EXPENSE }, YearSummaryExpense) }
+            item { CategoryShareCard("收入分类占比", "本年没有收入记录", state.categories.filter { it.type == AccountType.INCOME }, YearSummaryIncome) }
+        }
+    }
+}
+
+@Preview(name = "记账总结 · 暂无记录", widthDp = 390, heightDp = 720, showBackground = true)
+@Composable
+private fun AccountingYearSummaryEmptyPreview() {
+    BlueTheme(darkTheme = false) {
+        AccountingYearSummaryContent(AccountingYearSummaryUiState(year = 2026, isLoading = false), {}, {}, {}, showTopBar = true)
     }
 }
 
