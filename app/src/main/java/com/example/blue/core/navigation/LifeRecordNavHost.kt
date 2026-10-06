@@ -210,7 +210,7 @@ fun LifeRecordNavHost(
                 SleepHubScreen(container = container, navController = navController)
             }
             composable(AppDestination.Time.route) {
-                TimeHubScreen(container = container, navController = navController)
+                TimeEventsScreen(container = container, navController = navController)
             }
 
             composable(Routes.DiaryQuick) {
@@ -443,14 +443,7 @@ fun LifeRecordNavHost(
                 )
             }
             composable(Routes.TimeEvents) {
-                TimeEventListScreen(
-                    repository = container.timeRepository,
-                    imageStorage = container.timeImageStorage,
-                    onOpenEvent = { id -> navController.navigateFromClick("time/events/detail/$id") },
-                    onCreateEvent = { navController.navigateFromClick(Routes.TimeEventNew) },
-                    onEditEvent = { id -> navController.navigateFromClick("time/events/edit/$id") },
-                    onBack = navController::navigateUpFromClick,
-                )
+                TimeEventsScreen(container = container, navController = navController)
             }
             composable(Routes.TimeEventNew) {
                 TimeEventEditorScreen(
@@ -515,10 +508,6 @@ private val accountingHubTabs = listOf(
     FeatureHubTab(key = "summary", label = "总结"),
 )
 
-private val timeHubTabs = listOf(
-    FeatureHubTab(key = "life-trace", label = "岁痕"),
-    FeatureHubTab(key = "events", label = "去来"),
-)
 @Composable
 private fun DiaryHubScreen(container: AppContainer, navController: NavHostController) {
     FeatureHubScreen(
@@ -608,28 +597,15 @@ private fun SleepHubScreen(container: AppContainer, navController: NavHostContro
 }
 
 @Composable
-private fun TimeHubScreen(container: AppContainer, navController: NavHostController) {
-    FeatureHubScreen(
-        tabs = timeHubTabs,
-        accentColor = Color(0xFF587A82),
-    ) { page ->
-        when (page) {
-            0 -> LifeTraceScreen(
-                repository = container.timeRepository,
-                onBack = navController::navigateUpFromClick,
-                showTopBar = false,
-            )
-            else -> TimeEventListScreen(
-                repository = container.timeRepository,
-                imageStorage = container.timeImageStorage,
-                onOpenEvent = { id -> navController.navigateFromClick("time/events/detail/$id") },
-                onCreateEvent = { navController.navigateFromClick(Routes.TimeEventNew) },
-                onEditEvent = { id -> navController.navigateFromClick("time/events/edit/$id") },
-                onBack = navController::navigateUpFromClick,
-                showTopBar = false,
-            )
-        }
-    }
+private fun TimeEventsScreen(container: AppContainer, navController: NavHostController) {
+    TimeEventListScreen(
+        repository = container.timeRepository,
+        imageStorage = container.timeImageStorage,
+        onOpenEvent = { id -> navController.navigateFromClick("time/events/detail/$id") },
+        onCreateEvent = { navController.navigateFromClick(Routes.TimeEventNew) },
+        onEditEvent = { id -> navController.navigateFromClick("time/events/edit/$id") },
+        onBack = navController::navigateUpFromClick,
+    )
 }
 
 @Composable

@@ -197,7 +197,7 @@ private fun RefinedPeriodArrow(enabled: Boolean, pointsLeft: Boolean, onClick: (
 }
 
 @Composable
-internal fun RefinedTopBar(title: String, onBack: () -> Unit) {
+internal fun RefinedTopBar(title: String, onBack: () -> Unit, action: (@Composable () -> Unit)? = null) {
     Box(Modifier.fillMaxWidth().background(RefinedBackground).statusBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp)) {
         Text(
             title, modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 52.dp),
@@ -209,6 +209,9 @@ internal fun RefinedTopBar(title: String, onBack: () -> Unit) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_home_chevron_right), "返回", Modifier.size(width = 18.dp, height = 26.dp).graphicsLayer { rotationZ = 180f }, tint = RefinedInk)
             }
+        }
+        if (action != null) {
+            Box(Modifier.align(Alignment.CenterEnd), contentAlignment = Alignment.Center) { action() }
         }
     }
 }

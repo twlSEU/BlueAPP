@@ -4,9 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,24 +13,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,36 +41,44 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.blue.R
 import com.example.blue.data.local.TimeImageStorage
 import com.example.blue.data.local.entity.TimeEventEntity
 import com.example.blue.data.local.entity.TimeEventType
 import com.example.blue.data.repository.TimeRepository
-import com.example.blue.feature.common.AppBackButton
 import com.example.blue.feature.common.AppDatePickerDialog
+import com.example.blue.feature.common.RefinedBackground
+import com.example.blue.feature.common.RefinedBlue
+import com.example.blue.feature.common.RefinedCard
+import com.example.blue.feature.common.RefinedCoral
+import com.example.blue.feature.common.RefinedInk
+import com.example.blue.feature.common.RefinedMuted
+import com.example.blue.feature.common.RefinedTopBar
+import com.example.blue.feature.common.RefinedViolet
+import com.example.blue.ui.theme.BlueTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.launch
 
-private val EditorBackground = Color(0xFFF5F6F7)
+private val EditorBackground = RefinedBackground
 private val EditorSurface = Color(0xFFFEFFFF)
-private val EditorTitle = Color(0xFF202D33)
-private val EditorBody = Color(0xFF7C878C)
-private val EditorAccent = Color(0xFF627F89)
-private val EditorAccentSoft = Color(0xFFE8EFF1)
-private val EditorBorder = Color(0xFFE0E5E7)
-private val EditorDanger = Color(0xFFC86C6C)
+private val EditorTitle = RefinedInk
+private val EditorBody = RefinedMuted
+private val EditorAccent = RefinedBlue
+private val EditorAccentSoft = Color(0xFFEEF4FF)
+private val EditorDanger = RefinedCoral
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimeEventEditorScreen(
     repository: TimeRepository,
@@ -161,164 +167,17 @@ fun TimeEventEditorScreen(
         }
     }
 
-    Scaffold(
-        containerColor = EditorBackground,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        if (eventId == null) "添加重要日子" else "编辑重要日子",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = EditorTitle,
-                    )
-                },
-                navigationIcon = { AppBackButton(onClick = onBack) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EditorBackground,
-                    scrolledContainerColor = EditorBackground,
-                ),
-            )
-        },
-        bottomBar = {
-            Surface(color = EditorBackground) {
-                Button(
-                    onClick = ::save,
-                    enabled = !saving,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 14.dp)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF344D56),
-                        contentColor = Color.White,
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp),
-                ) {
-                    Text(if (saving) "保存中…" else "保存", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                }
-            }
-        },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 18.dp, top = 14.dp, end = 18.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item {
-                EventImagePicker(
-                    model = selectedImage ?: existingImagePath?.let(imageStorage::fileFor),
-                    onPick = {
-                        imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    },
-                    onRemove = {
-                        selectedImage = null
-                        existingImagePath = null
-                    },
-                )
-            }
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(26.dp),
-                    color = EditorSurface,
-                    shadowElevation = 4.dp,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            EditorLabel("事件名称")
-                            OutlinedTextField(
-                                value = title,
-                                onValueChange = {
-                                    title = it.take(40)
-                                    errorMessage = null
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("例如：朋友生日", color = EditorBody.copy(alpha = 0.7f)) },
-                                singleLine = true,
-                                shape = RoundedCornerShape(18.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = EditorAccent,
-                                    unfocusedBorderColor = EditorBorder,
-                                    focusedContainerColor = Color(0xFFFDFEFE),
-                                    unfocusedContainerColor = Color(0xFFFDFEFE),
-                                ),
-                            )
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            EditorLabel("类型")
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                EventTypeOption(
-                                    title = "倒数日",
-                                    subtitle = "等待一个日子",
-                                    selected = type == TimeEventType.COUNTDOWN,
-                                    onClick = { type = TimeEventType.COUNTDOWN },
-                                    modifier = Modifier.weight(1f),
-                                )
-                                EventTypeOption(
-                                    title = "纪念日",
-                                    subtitle = "记住已经发生",
-                                    selected = type == TimeEventType.ANNIVERSARY,
-                                    onClick = { type = TimeEventType.ANNIVERSARY },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            EditorLabel("日期")
-                            Surface(
-                                onClick = { showDatePicker = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(18.dp),
-                                color = Color(0xFFF7F9F9),
-                                border = BorderStroke(1.dp, EditorBorder),
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 15.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Surface(shape = CircleShape, color = EditorAccentSoft, modifier = Modifier.size(38.dp)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text("日", fontWeight = FontWeight.SemiBold, color = EditorAccent)
-                                        }
-                                    }
-                                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                                        Text(
-                                            "${date.year}年${date.monthValue}月${date.dayOfMonth}日",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium,
-                                            color = EditorTitle,
-                                        )
-                                        Text(
-                                            "星期${weekdayLabel(date.dayOfWeek)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = EditorBody,
-                                        )
-                                    }
-                                    Text("›", style = MaterialTheme.typography.titleLarge, color = EditorAccent)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            errorMessage?.let { message ->
-                item {
-                    Text(
-                        text = message,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = EditorDanger,
-                    )
-                }
-            }
-        }
-    }
+    TimeEventEditorContent(
+        isEditing = eventId != null, title = title, date = date, type = type,
+        imageModel = selectedImage ?: existingImagePath?.let(imageStorage::fileFor),
+        saving = saving, errorMessage = errorMessage,
+        onTitleChange = { title = it.take(40); errorMessage = null },
+        onTypeChange = { type = it },
+        onPickDate = { showDatePicker = true },
+        onPickImage = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onRemoveImage = { selectedImage = null; existingImagePath = null },
+        onSave = ::save, onBack = onBack,
+    )
     if (showDatePicker) {
         AppDatePickerDialog(
             selectedDate = date,
@@ -334,63 +193,162 @@ fun TimeEventEditorScreen(
 }
 
 @Composable
-private fun EventImagePicker(
-    model: Any?,
-    onPick: () -> Unit,
-    onRemove: () -> Unit,
+private fun TimeEventEditorContent(
+    isEditing: Boolean,
+    title: String,
+    date: LocalDate,
+    type: TimeEventType,
+    imageModel: Any?,
+    saving: Boolean,
+    errorMessage: String?,
+    onTitleChange: (String) -> Unit,
+    onTypeChange: (TimeEventType) -> Unit,
+    onPickDate: () -> Unit,
+    onPickImage: () -> Unit,
+    onRemoveImage: () -> Unit,
+    onSave: () -> Unit,
+    onBack: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp)
-            .shadow(
-                8.dp,
-                RoundedCornerShape(28.dp),
-                ambientColor = Color(0xFF87969B).copy(alpha = 0.10f),
-                spotColor = Color(0xFF87969B).copy(alpha = 0.12f),
-            )
-            .clickable(onClick = onPick),
-        shape = RoundedCornerShape(28.dp),
-        color = EditorAccentSoft,
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (model != null) {
-                AsyncImage(
-                    model = model,
-                    contentDescription = "事件图片",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(54.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("+", style = MaterialTheme.typography.headlineSmall, color = EditorAccent)
-                        }
+    Scaffold(
+        containerColor = EditorBackground,
+        topBar = { RefinedTopBar(if (isEditing) "编辑重要日子" else "添加重要日子", onBack) },
+        bottomBar = {
+            Surface(color = EditorBackground, modifier = Modifier.imePadding()) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Button(
+                        onClick = onSave, enabled = !saving,
+                        modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth()
+                            .navigationBarsPadding().padding(start = 16.dp, top = 10.dp, end = 16.dp, bottom = 14.dp)
+                            .heightIn(min = 52.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EditorAccent, contentColor = Color.White,
+                            disabledContainerColor = EditorAccent.copy(alpha = 0.35f),
+                            disabledContentColor = Color.White,
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) {
+                        Text(if (saving) "保存中…" else "保存", fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Text("选择一张事件图片", fontWeight = FontWeight.SemiBold, color = EditorTitle)
-                    Text("让重要日子更容易被认出", style = MaterialTheme.typography.bodySmall, color = EditorBody)
                 }
             }
-            Surface(
-                modifier = Modifier.align(Alignment.BottomStart).padding(14.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = Color.White.copy(alpha = 0.9f),
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    if (model == null) "添加图片" else "更换图片",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = EditorTitle,
-                )
+                item { EventImagePicker(imageModel, onPickImage, onRemoveImage) }
+                item {
+                    RefinedCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                EditorLabel("事件名称")
+                                OutlinedTextField(
+                                    value = title, onValueChange = onTitleChange,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = EditorTitle, letterSpacing = 0.sp),
+                                    placeholder = { Text("例如：朋友生日", fontSize = 14.sp, color = EditorBody) },
+                                    singleLine = true, shape = RoundedCornerShape(16.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = EditorAccent.copy(alpha = 0.25f),
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color(0xFFF3F6FB), unfocusedContainerColor = Color(0xFFF3F6FB),
+                                        cursorColor = EditorAccent,
+                                    ),
+                                )
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                EditorLabel("类型")
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    EventTypeOption(
+                                        "倒数日", "等待一个日子", type == TimeEventType.COUNTDOWN,
+                                        { onTypeChange(TimeEventType.COUNTDOWN) }, Modifier.weight(1f),
+                                    )
+                                    EventTypeOption(
+                                        "纪念日", "记住已经发生", type == TimeEventType.ANNIVERSARY,
+                                        { onTypeChange(TimeEventType.ANNIVERSARY) }, Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                EditorLabel("日期")
+                                Surface(
+                                    onClick = onPickDate, modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp), color = Color(0xFFF3F6FB),
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        Box(Modifier.size(36.dp).background(EditorAccentSoft, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                                            Icon(painterResource(R.drawable.ic_calendar), null, Modifier.size(18.dp), tint = EditorAccent)
+                                        }
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                "${date.year}年${date.monthValue}月${date.dayOfMonth}日",
+                                                modifier = Modifier.fillMaxWidth(), fontSize = 16.sp, lineHeight = 22.sp,
+                                                fontWeight = FontWeight.Medium, color = EditorTitle, maxLines = 1, softWrap = false,
+                                                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
+                                            )
+                                            Text("星期${weekdayLabel(date.dayOfWeek)}", fontSize = 11.sp, lineHeight = 17.sp, color = EditorBody)
+                                        }
+                                        Icon(painterResource(R.drawable.ic_home_chevron_right), null, Modifier.size(width = 8.dp, height = 14.dp), tint = EditorBody)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                errorMessage?.let { message ->
+                    item {
+                        Surface(shape = RoundedCornerShape(16.dp), color = EditorDanger.copy(alpha = 0.07f)) {
+                            Text(message, Modifier.fillMaxWidth().padding(14.dp), fontSize = 13.sp, lineHeight = 20.sp, color = EditorDanger)
+                        }
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun EventImagePicker(model: Any?, onPick: () -> Unit, onRemove: () -> Unit) {
+    Surface(
+        onClick = onPick, modifier = Modifier.fillMaxWidth().height(188.dp),
+        shape = RoundedCornerShape(24.dp), color = EditorSurface,
+    ) {
+        Box(
+            Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFEDF4FF), Color(0xFFF8FBFF)))),
+            contentAlignment = Alignment.Center,
+        ) {
             if (model != null) {
-                TextButton(
-                    onClick = onRemove,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                AsyncImage(model, "事件图片", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Surface(
+                    Modifier.align(Alignment.BottomStart).padding(12.dp),
+                    shape = RoundedCornerShape(12.dp), color = Color.White.copy(alpha = 0.94f),
                 ) {
-                    Text("移除", color = EditorDanger, fontWeight = FontWeight.SemiBold)
+                    Text("更换图片", Modifier.padding(horizontal = 12.dp, vertical = 9.dp), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = EditorTitle)
+                }
+                Surface(
+                    onClick = onRemove, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    shape = RoundedCornerShape(12.dp), color = Color.White.copy(alpha = 0.94f),
+                ) {
+                    Text("移除", Modifier.padding(horizontal = 12.dp, vertical = 9.dp), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = EditorDanger)
+                }
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Box(Modifier.size(48.dp).background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(R.drawable.ic_image_placeholder), null, Modifier.size(23.dp), tint = EditorAccent)
+                    }
+                    Text("选择一张事件图片", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = EditorTitle)
+                    Text("让重要日子更容易被认出", fontSize = 11.sp, lineHeight = 17.sp, color = EditorBody)
                 }
             }
         }
@@ -405,21 +363,25 @@ private fun EventTypeOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val anniversary = title == "纪念日"
+    val accent = if (anniversary) RefinedViolet else EditorAccent
     Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) EditorAccentSoft else Color(0xFFF7F9F9),
-        border = BorderStroke(1.dp, if (selected) EditorAccent.copy(alpha = 0.38f) else EditorBorder),
+        onClick = onClick, modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) accent.copy(alpha = 0.08f) else Color(0xFFF3F6FB),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold, color = EditorTitle)
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    painterResource(if (anniversary) R.drawable.ic_clock else R.drawable.ic_calendar), null,
+                    Modifier.size(16.dp), tint = if (selected) accent else EditorBody,
+                )
+                Text(title, fontSize = 13.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium, color = if (selected) accent else EditorTitle)
+            }
             Text(
-                subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = EditorBody,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                subtitle, modifier = Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 16.sp, color = EditorBody,
+                maxLines = 1, softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 10.sp, stepSize = 0.5.sp),
             )
         }
     }
@@ -427,12 +389,7 @@ private fun EventTypeOption(
 
 @Composable
 private fun EditorLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = EditorTitle,
-    )
+    Text(text, fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, color = EditorBody)
 }
 
 private fun weekdayLabel(day: DayOfWeek): String = when (day) {
@@ -443,4 +400,48 @@ private fun weekdayLabel(day: DayOfWeek): String = when (day) {
     DayOfWeek.FRIDAY -> "五"
     DayOfWeek.SATURDAY -> "六"
     DayOfWeek.SUNDAY -> "日"
+}
+
+@Composable
+private fun TimeEventEditorPreviewContent(
+    isEditing: Boolean = false,
+    error: String? = null,
+    saving: Boolean = false,
+) {
+    BlueTheme(darkTheme = false) {
+        TimeEventEditorContent(
+            isEditing = isEditing, title = if (isEditing) "第一次远行" else "",
+            date = if (isEditing) LocalDate.now().minusDays(310) else LocalDate.now().plusDays(23),
+            type = if (isEditing) TimeEventType.ANNIVERSARY else TimeEventType.COUNTDOWN,
+            imageModel = null, saving = saving, errorMessage = error,
+            onTitleChange = {}, onTypeChange = {}, onPickDate = {}, onPickImage = {},
+            onRemoveImage = {}, onSave = {}, onBack = {},
+        )
+    }
+}
+
+@Preview(name = "添加重要日子 · 标准手机", widthDp = 390, heightDp = 1000, showBackground = true)
+@Preview(name = "添加重要日子 · 窄屏", widthDp = 320, heightDp = 1000, showBackground = true)
+@Preview(name = "添加重要日子 · 大字体", widthDp = 390, heightDp = 1200, fontScale = 1.5f, showBackground = true)
+@Composable
+private fun TimeEventEditorPreview() {
+    TimeEventEditorPreviewContent()
+}
+
+@Preview(name = "编辑重要日子 · 纪念日", widthDp = 390, heightDp = 1000, showBackground = true)
+@Composable
+private fun TimeEventEditPreview() {
+    TimeEventEditorPreviewContent(isEditing = true)
+}
+
+@Preview(name = "添加重要日子 · 校验提示", widthDp = 390, heightDp = 1000, showBackground = true)
+@Composable
+private fun TimeEventEditorErrorPreview() {
+    TimeEventEditorPreviewContent(error = "请填写事件名称")
+}
+
+@Preview(name = "添加重要日子 · 保存中", widthDp = 390, heightDp = 1000, showBackground = true)
+@Composable
+private fun TimeEventEditorSavingPreview() {
+    TimeEventEditorPreviewContent(isEditing = true, saving = true)
 }
