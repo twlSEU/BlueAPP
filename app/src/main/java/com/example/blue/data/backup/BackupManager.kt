@@ -18,6 +18,10 @@ import com.example.blue.data.local.entity.SleepSource
 import com.example.blue.data.local.entity.TimeEventEntity
 import com.example.blue.data.local.entity.TimeEventType
 import com.example.blue.data.local.entity.TimeProfileEntity
+import com.example.blue.data.local.entity.RecordTypeEntity
+import com.example.blue.data.local.entity.NumericRecordEntity
+import com.example.blue.data.repository.validateRecordType
+import com.example.blue.data.repository.validateNumericRecord
 import com.example.blue.model.AccountType
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -42,6 +46,8 @@ data class BackupInfo(
     val imageCount: Int,
     val sleepCount: Int = 0,
     val timeEventCount: Int = 0,
+    val recordTypeCount: Int = 0,
+    val numericRecordCount: Int = 0,
 )
 
 enum class RestoreMode { MERGE, REPLACE }
@@ -67,6 +73,10 @@ class BackupManager(
         val timeDao = database.timeDao()
         val timeProfile = timeDao.getProfile()
         val timeEvents = timeDao.getAllEvents()
+        val recordDao = database.recordDao()
+        val (recordTypes, numericRecords) = database.withTransaction {
+            recordDao.getAllTypes() to recordDao.getAllRecords()
+        }
         val availableTimeImages = timeEvents.mapNotNull(TimeEventEntity::imagePath).distinct().mapNotNull { path ->
             timeImageStorage.fileFor(path).takeIf(File::isFile)
         }
@@ -81,6 +91,8 @@ class BackupManager(
             put("accountCount", accounts.size)
             put("sleepCount", sleeps.size)
             put("timeEventCount", timeEvents.size)
+            put("recordTypeCount", recordTypes.size)
+            put("numericRecordCount", numericRecords.size)
             put("imageCount", availableImages.size + availableTimeImages.size)
         }
         context.contentResolver.openOutputStream(uri)?.use { output ->
@@ -102,6 +114,7 @@ class BackupManager(
                     timeJson(profile = timeProfile, events = timeEvents, availableImages = availableTimeImages).toString(),
                 )
                 writeText(zip, "accounts.csv", accountsCsv(accounts, categories.associateBy { it.id }))
+                writeText(zip, "records.json", recordsJson(recordTypes, numericRecords).toString())
                 availableImages.forEach { image ->
                     val file = imageStorage.fileFor(image.localPath)
                     require(file.length() <= MAX_IMAGE_BYTES) { "图片文件过大，无法导出：${file.name}" }
@@ -156,6 +169,10 @@ class BackupManager(
                     TimeBackupData(profile = null, events = emptyList())
                 }
 
+                val recordData = if (manifest.formatVersion >= RECORD_BACKUP_VERSION) {
+                    parseRecordData(JSONObject(readText(zip, "records.json")))
+                } else RecordBackupData(emptyList(), emptyList())
+
                 diaryStaging.listFiles().orEmpty().forEach { source ->
                     val destination = imageStorage.fileFor(
                         "${DiaryImageStorage.DIRECTORY_NAME}/${source.name}",
@@ -180,6 +197,7 @@ class BackupManager(
                     val diaryDao = database.diaryDao()
                     val sleepRecordDao = database.sleepRecordDao()
                     val timeDao = database.timeDao()
+                    val recordDao = database.recordDao()
                     if (mode == RestoreMode.REPLACE) {
                         accountDao.clearAllEntries()
                         accountDao.clearAllCategories()
@@ -187,6 +205,7 @@ class BackupManager(
                         sleepRecordDao.clearAllRecords()
                         timeDao.clearEvents()
                         timeDao.clearProfile()
+                        recordDao.clearTypes()
                     }
                     categories.forEach { accountDao.upsertCategory(it) }
                     accounts.forEach { accountDao.upsertEntry(it) }
@@ -222,6 +241,19 @@ class BackupManager(
                                     )
                                 }
                             }
+                        }
+                    }
+                    recordData.types.forEach { imported ->
+                        val existing = recordDao.getType(imported.id)
+                        if (existing == null || imported.updatedAt >= existing.updatedAt) {
+                            recordDao.upsertType(imported.copy(createdAt = existing?.createdAt ?: imported.createdAt))
+                        }
+                    }
+                    recordData.records.forEach { imported ->
+                        val existing = recordDao.getRecord(imported.id)
+                        require(existing == null || existing.typeId == imported.typeId) { "备份中的数据与已有记录项目不匹配" }
+                        if (existing == null || imported.updatedAt >= existing.updatedAt) {
+                            recordDao.upsertRecord(imported.copy(createdAt = existing?.createdAt ?: imported.createdAt))
                         }
                     }
                     timeData.profile?.let { profile -> timeDao.upsertProfile(profile) }
@@ -519,6 +551,46 @@ class BackupManager(
         return TimeBackupData(profile = profile, events = events)
     }
 
+    private fun recordsJson(types: List<RecordTypeEntity>, records: List<NumericRecordEntity>) = JSONObject().apply {
+        put("types", JSONArray().also { result ->
+            types.forEach { type -> result.put(JSONObject().apply {
+                put("id", type.id); put("name", type.name); put("unit", type.unit)
+                put("createdAt", type.createdAt); put("updatedAt", type.updatedAt)
+            }) }
+        })
+        put("records", JSONArray().also { result ->
+            records.forEach { record -> result.put(JSONObject().apply {
+                put("id", record.id); put("typeId", record.typeId); put("value", record.value)
+                put("recordedAt", record.recordedAt); put("note", record.note)
+                put("createdAt", record.createdAt); put("updatedAt", record.updatedAt)
+            }) }
+        })
+    }
+
+    private fun parseRecordData(json: JSONObject): RecordBackupData {
+        val typesArray = json.getJSONArray("types")
+        val types = (0 until typesArray.length()).map { index ->
+            val item = typesArray.getJSONObject(index)
+            RecordTypeEntity(item.getString("id"), item.getString("name"), item.getString("unit"), item.getLong("createdAt"), item.getLong("updatedAt"))
+                .also { require(it.id.isNotBlank()) { "备份中的记录项目 ID 为空" }; validateRecordType(it) }
+        }
+        val recordsArray = json.getJSONArray("records")
+        val typeIds = types.map { it.id }.toSet()
+        require(typeIds.size == types.size) { "备份包含重复的记录项目 ID" }
+        val records = (0 until recordsArray.length()).map { index ->
+            val item = recordsArray.getJSONObject(index)
+            NumericRecordEntity(
+                item.getString("id"), item.getString("typeId"), item.getDouble("value"),
+                item.getLong("recordedAt"), item.getString("note"), item.getLong("createdAt"), item.getLong("updatedAt"),
+            ).also {
+                require(it.id.isNotBlank() && it.typeId in typeIds) { "备份中的数据缺少对应记录项目" }
+                validateNumericRecord(it)
+            }
+        }
+        require(records.map { it.id }.toSet().size == records.size) { "备份包含重复的数据 ID" }
+        return RecordBackupData(types, records)
+    }
+
     private fun parseManifest(text: String): ParsedManifest {
         val json = JSONObject(text)
         val formatVersion = json.getInt("formatVersion")
@@ -531,6 +603,8 @@ class BackupManager(
                 accountCount = json.optInt("accountCount"),
                 sleepCount = json.optInt("sleepCount"),
                 timeEventCount = json.optInt("timeEventCount"),
+                recordTypeCount = json.optInt("recordTypeCount"),
+                numericRecordCount = json.optInt("numericRecordCount"),
                 imageCount = json.optInt("imageCount"),
             ),
         )
@@ -642,11 +716,14 @@ class BackupManager(
         val events: List<TimeEventEntity>,
     )
 
+    private data class RecordBackupData(val types: List<RecordTypeEntity>, val records: List<NumericRecordEntity>)
+
     private companion object {
-        const val FORMAT_VERSION = 5
+        const val FORMAT_VERSION = 6
         const val MIN_SUPPORTED_FORMAT_VERSION = 1
         const val SLEEP_BACKUP_VERSION = 2
         const val TIME_BACKUP_VERSION = 3
+        const val RECORD_BACKUP_VERSION = 6
         val LEGACY_MOOD_RANGE = 1..6
         const val MAX_JSON_BYTES = 64L * 1024 * 1024
         const val MAX_IMAGE_BYTES = 100L * 1024 * 1024

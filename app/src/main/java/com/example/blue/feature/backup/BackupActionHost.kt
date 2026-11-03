@@ -122,6 +122,7 @@ fun BackupActionHost(
                 Text(
                     "日记 ${info.diaryCount} 篇 · 账目 ${info.accountCount} 条 · " +
                         "睡眠 ${info.sleepCount} 条 · 去来 ${info.timeEventCount} 条 · " +
+                        "记录项目 ${info.recordTypeCount} 个 · 数据 ${info.numericRecordCount} 条 · " +
                         "图片 ${info.imageCount} 张",
                 )
             },
@@ -155,7 +156,7 @@ fun BackupActionHost(
         AlertDialog(
             onDismissRequest = { confirmReplace = false },
             title = { Text("确认清空当前数据？") },
-            text = { Text("这会删除当前日记、账目、睡眠记录和照片，再恢复备份。请再次确认。") },
+            text = { Text("这会删除当前日记、账目、睡眠、时光、记录项目及数据和照片，再恢复备份。请再次确认。") },
             confirmButton = {
                 TextButton(
                     onClick = {

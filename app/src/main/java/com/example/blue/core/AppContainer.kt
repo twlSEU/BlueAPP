@@ -16,6 +16,8 @@ import com.example.blue.data.repository.OfflineSleepRepository
 import com.example.blue.data.repository.OfflineTimeRepository
 import com.example.blue.data.repository.SleepRepository
 import com.example.blue.data.repository.TimeRepository
+import com.example.blue.data.repository.RecordRepository
+import com.example.blue.data.repository.OfflineRecordRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +32,7 @@ interface AppContainer {
     val sleepRepository: SleepRepository
     val timeRepository: TimeRepository
     val timeImageStorage: TimeImageStorage
+    val recordRepository: RecordRepository
     val backupManager: BackupManager
 
     fun initialize()
@@ -77,6 +80,10 @@ class DefaultAppContainer(context: Context) : AppContainer {
 
     override val timeImageStorage: TimeImageStorage by lazy {
         TimeImageStorage(context.applicationContext)
+    }
+
+    override val recordRepository: RecordRepository by lazy {
+        OfflineRecordRepository(database.recordDao())
     }
 
     override val backupManager: BackupManager by lazy {

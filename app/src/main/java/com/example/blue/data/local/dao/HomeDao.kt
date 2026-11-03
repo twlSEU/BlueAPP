@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface HomeDao {
-    /** Returns only the four counters rendered on home in a single observable query. */
+    /** Returns the counters rendered on home in a single observable query. */
     @Query(
         """
         SELECT
@@ -18,7 +18,8 @@ interface HomeDao {
                 WHERE entryDate >= :startDate AND entryDate < :endDateExclusive) AS accountingMonthCount,
             (SELECT COUNT(*) FROM sleep_records
                 WHERE recordDate >= :startDate AND recordDate < :endDateExclusive) AS sleepMonthCount,
-            (SELECT COUNT(*) FROM time_events) AS timeEventCount
+            (SELECT COUNT(*) FROM time_events) AS timeEventCount,
+            (SELECT COUNT(*) FROM record_types) AS recordTypeCount
         """,
     )
     fun observeMetrics(

@@ -10,6 +10,9 @@ import com.example.blue.data.local.dao.DiaryDao
 import com.example.blue.data.local.dao.HomeDao
 import com.example.blue.data.local.dao.SleepRecordDao
 import com.example.blue.data.local.dao.TimeDao
+import com.example.blue.data.local.dao.RecordDao
+import com.example.blue.data.local.entity.RecordTypeEntity
+import com.example.blue.data.local.entity.NumericRecordEntity
 import com.example.blue.data.local.entity.AccountCategoryEntity
 import com.example.blue.data.local.entity.AccountEntryEntity
 import com.example.blue.data.local.entity.DiaryEntity
@@ -29,8 +32,10 @@ import com.example.blue.data.local.entity.TimeProfileEntity
         SleepRecordEntity::class,
         TimeProfileEntity::class,
         TimeEventEntity::class,
+        RecordTypeEntity::class,
+        NumericRecordEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -44,6 +49,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sleepRecordDao(): SleepRecordDao
 
     abstract fun timeDao(): TimeDao
+
+    abstract fun recordDao(): RecordDao
 
     companion object {
         const val DATABASE_NAME = "life_record.db"
@@ -143,12 +150,39 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS record_types (
+                        id TEXT NOT NULL, name TEXT NOT NULL, unit TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS numeric_records (
+                        id TEXT NOT NULL, typeId TEXT NOT NULL, value REAL NOT NULL,
+                        recordedAt INTEGER NOT NULL, note TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(id),
+                        FOREIGN KEY(typeId) REFERENCES record_types(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE INDEX IF NOT EXISTS index_numeric_records_typeId_recordedAt_createdAt_id
+                    ON numeric_records(typeId, recordedAt, createdAt, id)
+                """.trimIndent())
+            }
+        }
+
         val MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
+            MIGRATION_6_7,
         )
     }
 }

@@ -12,5 +12,6 @@ sealed class AppDestination(
     data object Accounting : AppDestination("accounting", "记账")
     data object Sleep : AppDestination("sleep", "睡眠")
     data object Time : AppDestination("time", "时光")
+    data object Records : AppDestination("records", "记录")
     data object Backup : AppDestination("backup", "数据管理")
 }

@@ -28,6 +28,7 @@ enum class HomeActionDestination {
     SLEEP_QUICK_RECORD,
     TIME_LIFE_TRACE,
     TIME_EVENTS,
+    RECORDS_OPEN,
     BACKUP_EXPORT,
     BACKUP_RESTORE,
 }
@@ -45,12 +46,14 @@ data class HomeMetrics(
     val accountingMonthCount: Int = 0,
     val sleepMonthCount: Int = 0,
     val timeEventCount: Int = 0,
+    val recordTypeCount: Int = 0,
 ) {
     fun labelFor(destination: AppDestination): String = when (destination) {
         AppDestination.Diary -> "本月 $diaryMonthCount 篇日记"
         AppDestination.Accounting -> "本月 $accountingMonthCount 笔记录"
         AppDestination.Sleep -> "本月 $sleepMonthCount 晚记录"
         AppDestination.Time -> "$timeEventCount 个重要日子"
+        AppDestination.Records -> "$recordTypeCount 个记录项目"
         AppDestination.Backup -> "本地保存"
         AppDestination.Home -> ""
     }
@@ -100,6 +103,16 @@ val homeFeatures = listOf(
             title = "去来",
             symbol = "⌛",
             destination = HomeActionDestination.TIME_EVENTS,
+        ),
+    ),
+    HomeFeature(
+        destination = AppDestination.Records,
+        iconRes = R.drawable.ic_records,
+        accent = FeatureAccent.TERTIARY,
+        primaryAction = HomeAction(
+            title = "记数据",
+            symbol = "+",
+            destination = HomeActionDestination.RECORDS_OPEN,
         ),
     ),
     HomeFeature(

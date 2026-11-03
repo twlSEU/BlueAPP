@@ -10,6 +10,7 @@ data class HomeMetricsSnapshot(
     val accountingMonthCount: Int = 0,
     val sleepMonthCount: Int = 0,
     val timeEventCount: Int = 0,
+    val recordTypeCount: Int = 0,
 )
 
 interface HomeRepository {

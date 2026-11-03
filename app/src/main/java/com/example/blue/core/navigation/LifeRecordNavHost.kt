@@ -73,6 +73,10 @@ import com.example.blue.feature.diary.DiaryYearSummaryScreen
 import com.example.blue.feature.home.HomeScreen
 import com.example.blue.feature.home.HomeActionDestination
 import com.example.blue.feature.home.HomeMetrics
+import com.example.blue.feature.records.RecordListScreen
+import com.example.blue.feature.records.RecordDetailScreen
+import com.example.blue.feature.records.RecordTypeEditorScreen
+import com.example.blue.feature.records.NumericRecordEditorScreen
 import com.example.blue.data.repository.HomeMetricsSnapshot
 import com.example.blue.feature.sleep.SleepArchiveAccent
 import com.example.blue.feature.sleep.SleepArchiveMonthScreen
@@ -160,6 +164,7 @@ fun LifeRecordNavHost(
                         accountingMonthCount = metricsSnapshot.accountingMonthCount,
                         sleepMonthCount = metricsSnapshot.sleepMonthCount,
                         timeEventCount = metricsSnapshot.timeEventCount,
+                        recordTypeCount = metricsSnapshot.recordTypeCount,
                     )
                 }
                 BackupActionHost(
@@ -188,6 +193,8 @@ fun LifeRecordNavHost(
                                 navController.navigateFromClick(Routes.LifeTrace)
                             HomeActionDestination.TIME_EVENTS ->
                                 navController.navigateFromClick(Routes.TimeEvents)
+                            HomeActionDestination.RECORDS_OPEN ->
+                                navController.navigateFromClick(AppDestination.Records.route)
                             HomeActionDestination.BACKUP_EXPORT ->
                                 requestedBackupAction = BackupAction.EXPORT
                             HomeActionDestination.BACKUP_RESTORE ->
@@ -211,6 +218,52 @@ fun LifeRecordNavHost(
             }
             composable(AppDestination.Time.route) {
                 TimeEventsScreen(container = container, navController = navController)
+            }
+
+            composable(AppDestination.Records.route) {
+                RecordListScreen(
+                    repository = container.recordRepository,
+                    onOpenType = { navController.navigateFromClick("records/detail/$it") },
+                    onCreateType = { navController.navigateFromClick("records/type-editor/new") },
+                    onBack = navController::navigateUpFromClick,
+                )
+            }
+            composable("records/type-editor/{typeId}") { entry ->
+                val typeId = entry.arguments?.getString("typeId")?.takeUnless { it == "new" }
+                RecordTypeEditorScreen(
+                    repository = container.recordRepository, typeId = typeId,
+                    onSaved = { id ->
+                        if (typeId == null) {
+                            navController.navigate("records/detail/$id") {
+                                popUpTo(entry.destination.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } else navController.navigateUpFromClick()
+                    },
+                    onBack = navController::navigateUpFromClick,
+                    onShowMessage = showGlobalMessage,
+                )
+            }
+            composable("records/detail/{typeId}") { entry ->
+                val typeId = entry.arguments?.getString("typeId") ?: return@composable
+                RecordDetailScreen(
+                    repository = container.recordRepository, typeId = typeId,
+                    onCreateRecord = { navController.navigateFromClick("records/$typeId/entry/new") },
+                    onEditRecord = { navController.navigateFromClick("records/$typeId/entry/$it") },
+                    onEditType = { navController.navigateFromClick("records/type-editor/$typeId") },
+                    onBack = navController::navigateUpFromClick,
+                    onShowMessage = showGlobalMessage,
+                )
+            }
+            composable("records/{typeId}/entry/{recordId}") { entry ->
+                val typeId = entry.arguments?.getString("typeId") ?: return@composable
+                val recordId = entry.arguments?.getString("recordId")?.takeUnless { it == "new" }
+                NumericRecordEditorScreen(
+                    repository = container.recordRepository, typeId = typeId, recordId = recordId,
+                    onSaved = { navController.navigateUpFromClick() },
+                    onBack = navController::navigateUpFromClick,
+                    onShowMessage = showGlobalMessage,
+                )
             }
 
             composable(Routes.DiaryQuick) {
