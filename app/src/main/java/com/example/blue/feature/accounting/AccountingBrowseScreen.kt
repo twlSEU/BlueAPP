@@ -390,7 +390,7 @@ private fun AccountingBrowseFilters(
 
             BrowseFilterDivider()
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                BrowseFilterTitle("备注关键词")
+                BrowseFilterTitle("搜索关键词")
                 BrowseSearchField(value = uiState.searchText, onValueChange = onSearchChanged)
             }
 
@@ -594,7 +594,13 @@ private fun BrowseSearchField(value: String, onValueChange: (String) -> Unit) {
                 decorationBox = { innerTextField ->
                     Box {
                         if (value.isEmpty()) {
-                            Text("搜索备注", style = MaterialTheme.typography.bodyMedium, color = BrowseMuted)
+                            Text(
+                                "搜索账目名称或备注",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = BrowseMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                         innerTextField()
                     }

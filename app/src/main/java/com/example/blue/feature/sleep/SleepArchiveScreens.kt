@@ -60,6 +60,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.flow.map
 
 private val ArchiveBackground = Color(0xFFF4F8FD)
@@ -79,6 +80,7 @@ private val ArchiveBedtimeColors = listOf(
     Color(0xFFCD752E), Color(0xFFDD511C), Color(0xFFCE5260),
 )
 private val archiveTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val archiveWeekdayFormatter = DateTimeFormatter.ofPattern("EEEE", Locale.SIMPLIFIED_CHINESE)
 
 @Composable
 fun SleepArchiveYearScreen(
@@ -301,16 +303,17 @@ private fun SleepArchiveDayCard(date: LocalDate, record: SleepRecordEntity?, onC
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Box(
-                modifier = Modifier.size(54.dp).background(
+            Column(
+                modifier = Modifier.width(54.dp).heightIn(min = 54.dp).background(
                     color = bedtimeLevel?.let { ArchiveBedtimeBackgrounds[it] } ?: Color(0xFFEDF3FA),
                     shape = RoundedCornerShape(14.dp),
-                ),
-                contentAlignment = Alignment.Center,
+                ).padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
                 Text(
                     date.dayOfMonth.toString(),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
                     fontWeight = FontWeight.Bold,
@@ -319,6 +322,18 @@ private fun SleepArchiveDayCard(date: LocalDate, record: SleepRecordEntity?, onC
                     maxLines = 1,
                     softWrap = false,
                     autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 26.sp, stepSize = 0.5.sp),
+                )
+                Text(
+                    date.format(archiveWeekdayFormatter),
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    letterSpacing = 0.sp,
+                    color = ArchiveMuted,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 10.sp, stepSize = 0.5.sp),
                 )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

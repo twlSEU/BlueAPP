@@ -284,6 +284,7 @@ fun LifeRecordNavHost(
             composable(Routes.DiarySummary) {
                 DiaryYearSummaryScreen(
                     repository = container.diaryRepository,
+                    stopWordPreferences = container.diaryStopWordPreferences,
                     onBack = navController::navigateUpFromClick,
                 )
             }
@@ -585,6 +586,7 @@ private fun DiaryHubScreen(container: AppContainer, navController: NavHostContro
             )
             else -> DiaryYearSummaryScreen(
                 repository = container.diaryRepository,
+                stopWordPreferences = container.diaryStopWordPreferences,
                 onBack = navController::navigateUpFromClick,
                 showTopBar = false,
             )

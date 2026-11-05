@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.blue.core.database.AppDatabase
 import com.example.blue.data.local.DiaryImageStorage
+import com.example.blue.data.local.DiaryStopWordPreferences
 import com.example.blue.data.local.TimeImageStorage
 import com.example.blue.data.backup.BackupManager
 import com.example.blue.data.repository.AccountRepository
@@ -29,6 +30,7 @@ interface AppContainer {
     val diaryRepository: DiaryRepository
     val accountRepository: AccountRepository
     val diaryImageStorage: DiaryImageStorage
+    val diaryStopWordPreferences: DiaryStopWordPreferences
     val sleepRepository: SleepRepository
     val timeRepository: TimeRepository
     val timeImageStorage: TimeImageStorage
@@ -65,6 +67,10 @@ class DefaultAppContainer(context: Context) : AppContainer {
 
     override val diaryImageStorage: DiaryImageStorage by lazy {
         DiaryImageStorage(context.applicationContext)
+    }
+
+    override val diaryStopWordPreferences: DiaryStopWordPreferences by lazy {
+        DiaryStopWordPreferences(context.applicationContext)
     }
 
     override val sleepRepository: SleepRepository by lazy {

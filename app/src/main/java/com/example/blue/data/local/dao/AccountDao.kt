@@ -16,6 +16,9 @@ import com.example.blue.data.repository.AccountPeriodSummary
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
+private const val ACCOUNT_BROWSE_KEYWORD_FILTER =
+    "(:keyword = '' OR INSTR(name, :keyword) > 0 OR INSTR(COALESCE(note, ''), :keyword) > 0)"
+
 @Dao
 interface AccountDao {
     @Transaction
@@ -52,7 +55,7 @@ interface AccountDao {
           AND (:endDateExclusive IS NULL OR entryDate < :endDateExclusive)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:type IS NULL OR type = :type)
-          AND (:keyword = '' OR INSTR(COALESCE(note, ''), :keyword) > 0)
+          AND $ACCOUNT_BROWSE_KEYWORD_FILTER
         """,
     )
     suspend fun countEntries(
@@ -71,7 +74,7 @@ interface AccountDao {
           AND (:endDateExclusive IS NULL OR entryDate < :endDateExclusive)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:type IS NULL OR type = :type)
-          AND (:keyword = '' OR INSTR(COALESCE(note, ''), :keyword) > 0)
+          AND $ACCOUNT_BROWSE_KEYWORD_FILTER
         ORDER BY entryDate, entryTime, id
         LIMIT :limit OFFSET :offset
         """,
@@ -94,7 +97,7 @@ interface AccountDao {
           AND (:endDateExclusive IS NULL OR entryDate < :endDateExclusive)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:type IS NULL OR type = :type)
-          AND (:keyword = '' OR INSTR(COALESCE(note, ''), :keyword) > 0)
+          AND $ACCOUNT_BROWSE_KEYWORD_FILTER
         ORDER BY entryDate DESC, entryTime DESC, id DESC
         LIMIT :limit OFFSET :offset
         """,
@@ -117,7 +120,7 @@ interface AccountDao {
           AND (:endDateExclusive IS NULL OR entryDate < :endDateExclusive)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:type IS NULL OR type = :type)
-          AND (:keyword = '' OR INSTR(COALESCE(note, ''), :keyword) > 0)
+          AND $ACCOUNT_BROWSE_KEYWORD_FILTER
         ORDER BY amountInCents, entryDate, entryTime, id
         LIMIT :limit OFFSET :offset
         """,
@@ -140,7 +143,7 @@ interface AccountDao {
           AND (:endDateExclusive IS NULL OR entryDate < :endDateExclusive)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:type IS NULL OR type = :type)
-          AND (:keyword = '' OR INSTR(COALESCE(note, ''), :keyword) > 0)
+          AND $ACCOUNT_BROWSE_KEYWORD_FILTER
         ORDER BY amountInCents DESC, entryDate DESC, entryTime DESC, id DESC
         LIMIT :limit OFFSET :offset
         """,

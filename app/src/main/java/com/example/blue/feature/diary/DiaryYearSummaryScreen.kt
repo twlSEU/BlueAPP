@@ -37,8 +37,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -65,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.blue.R
+import com.example.blue.data.local.DiaryStopWordPreferences
 import com.example.blue.data.repository.DiaryMonthAggregate
 import com.example.blue.data.repository.DiaryMonthlyMoodAggregate
 import com.example.blue.data.repository.DiaryMoodAggregate
@@ -128,21 +131,30 @@ data class DiaryYearSummaryUiState(
     val acceptedWordCount: Int = 0,
     val isAnalyzingWords: Boolean = true,
     val analysisMessage: String? = null,
+    val customStopWords: Set<String> = emptySet(),
 ) {
     val hasData: Boolean get() = (summary?.diaryCount ?: 0) > 0
 }
 
 class DiaryYearSummaryViewModel(
     private val repository: DiaryRepository,
+    private val stopWordPreferences: DiaryStopWordPreferences,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DiaryYearSummaryUiState())
     val uiState: StateFlow<DiaryYearSummaryUiState> = _uiState.asStateFlow()
 
     private var aggregateJob: Job? = null
+    private var streakJob: Job? = null
     private var analysisJob: Job? = null
 
     init {
         loadYear(LocalDate.now().year)
+        viewModelScope.launch {
+            stopWordPreferences.words.collect { words ->
+                val current = _uiState.value
+                if (words != current.customStopWords) loadWordAnalysis(current.year, words)
+            }
+        }
     }
 
     fun moveToYear(year: Int) {
@@ -152,10 +164,27 @@ class DiaryYearSummaryViewModel(
 
     fun retry() = loadYear(_uiState.value.year)
 
+    fun addStopWord(input: String): String? {
+        val word = normalizeCustomDiaryStopWord(input)
+            ?: return "请输入一个词（最多 24 字，不含空格、数字或标点）"
+        if (diaryWordForFrequency(word, emptySet()) == null) return "这个短词已自动过滤"
+        if (word in defaultDiaryStopWords) return "这个词已在默认停用词中"
+        val words = stopWordPreferences.words.value
+        if (word in words) return "已添加这个停用词"
+        stopWordPreferences.replace(words + word)
+        return null
+    }
+
+    fun removeStopWord(word: String) {
+        stopWordPreferences.replace(stopWordPreferences.words.value - word)
+    }
+
     private fun loadYear(year: Int) {
         aggregateJob?.cancel()
+        streakJob?.cancel()
         analysisJob?.cancel()
-        _uiState.value = DiaryYearSummaryUiState(year = year)
+        val customStopWords = stopWordPreferences.words.value
+        _uiState.value = DiaryYearSummaryUiState(year = year, customStopWords = customStopWords)
         aggregateJob = viewModelScope.launch {
             try {
                 combine(
@@ -188,17 +217,38 @@ class DiaryYearSummaryViewModel(
                 }
             }
         }
-        analysisJob = viewModelScope.launch {
+        streakJob = viewModelScope.launch {
             try {
                 val dates = repository.getDistinctDiaryDates(year)
                 val streak = longestDiaryStreak(dates)
                 _uiState.update { current ->
                     if (current.year == year) current.copy(longestStreak = streak) else current
                 }
-                val words = analyzeDiaryWords(repository, year)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // The other statistics remain available if this metric could not be loaded.
+            }
+        }
+        loadWordAnalysis(year, customStopWords)
+    }
+
+    private fun loadWordAnalysis(year: Int, customStopWords: Set<String>) {
+        analysisJob?.cancel()
+        _uiState.update {
+            it.copy(
+                customStopWords = customStopWords,
+                wordFrequencies = emptyList(),
+                acceptedWordCount = 0,
+                isAnalyzingWords = true,
+                analysisMessage = null,
+            )
+        }
+        analysisJob = viewModelScope.launch {
+            try {
+                val words = analyzeDiaryWords(repository, year, defaultDiaryStopWords + customStopWords)
                 _uiState.update { current ->
-                    if (current.year != year) current else current.copy(
-                        longestStreak = streak,
+                    if (current.year != year || current.customStopWords != customStopWords) current else current.copy(
                         wordFrequencies = words.frequencies,
                         acceptedWordCount = words.acceptedWordCount,
                         isAnalyzingWords = false,
@@ -213,7 +263,7 @@ class DiaryYearSummaryViewModel(
                 throw cancelled
             } catch (_: Throwable) {
                 _uiState.update { current ->
-                    if (current.year != year) current else current.copy(
+                    if (current.year != year || current.customStopWords != customStopWords) current else current.copy(
                         isAnalyzingWords = false,
                         analysisMessage = "词频分析暂时不可用",
                     )
@@ -223,12 +273,12 @@ class DiaryYearSummaryViewModel(
     }
 
     companion object {
-        fun factory(repository: DiaryRepository): ViewModelProvider.Factory =
+        fun factory(repository: DiaryRepository, stopWordPreferences: DiaryStopWordPreferences): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(DiaryYearSummaryViewModel::class.java))
-                    return DiaryYearSummaryViewModel(repository) as T
+                    return DiaryYearSummaryViewModel(repository, stopWordPreferences) as T
                 }
             }
     }
@@ -250,7 +300,7 @@ private const val WORD_BATCH_SIZE = 40
 private const val MIN_WORDS_FOR_CLOUD = 12
 private const val MAX_TRACKED_WORDS = 4_000
 
-private suspend fun analyzeDiaryWords(repository: DiaryRepository, year: Int): DiaryWordAnalysis {
+private suspend fun analyzeDiaryWords(repository: DiaryRepository, year: Int, stopWords: Set<String>): DiaryWordAnalysis {
     val counts = HashMap<String, Int>()
     var accepted = 0
     var offset = 0
@@ -262,7 +312,7 @@ private suspend fun analyzeDiaryWords(repository: DiaryRepository, year: Int): D
             var localAccepted = 0
             batch.forEach { item ->
                 coroutineContext.ensureActive()
-                tokenizeDiaryText(item.content).forEach { word ->
+                tokenizeDiaryText(item.content, stopWords).forEach { word ->
                     counts[word] = (counts[word] ?: 0) + 1
                     localAccepted += 1
                 }
@@ -288,7 +338,7 @@ private suspend fun analyzeDiaryWords(repository: DiaryRepository, year: Int): D
     return DiaryWordAnalysis(frequencies, accepted)
 }
 
-private fun tokenizeDiaryText(text: String): List<String> {
+private fun tokenizeDiaryText(text: String, stopWords: Set<String>): List<String> {
     if (text.isBlank()) return emptyList()
     val iterator = BreakIterator.getWordInstance(Locale.CHINA)
     iterator.setText(text)
@@ -296,30 +346,12 @@ private fun tokenizeDiaryText(text: String): List<String> {
     var start = iterator.first()
     var end = iterator.next()
     while (end != BreakIterator.DONE) {
-        val raw = text.substring(start, end).trim().lowercase(Locale.ROOT)
-        val normalized = raw.filter { it.isLetter() }
-        val codePointCount = normalized.codePointCount(0, normalized.length)
-        val isChinese = normalized.any { it.code in 0x3400..0x9FFF }
-        val minimumLength = if (isChinese) 2 else 3
-        if (
-            codePointCount >= minimumLength &&
-            normalized !in diaryStopWords &&
-            normalized.none(Char::isDigit)
-        ) {
-            result += normalized
-        }
+        diaryWordForFrequency(text.substring(start, end), stopWords)?.let(result::add)
         start = end
         end = iterator.next()
     }
     return result
 }
-
-private val diaryStopWords = setOf(
-    "今天", "昨天", "明天", "现在", "然后", "因为", "所以", "但是", "还是", "已经", "没有", "一个", "一些",
-    "这个", "那个", "自己", "觉得", "感觉", "真的", "就是", "可以", "可能", "非常", "比较", "时候", "事情",
-    "我们", "你们", "他们", "她们", "它们", "我的", "你的", "他的", "她的", "以及", "如果", "而且", "不过",
-    "the", "and", "that", "this", "with", "from", "have", "was", "were", "are", "for", "but", "not",
-)
 
 internal fun longestDiaryStreak(dates: List<LocalDate>): Int {
     val sorted = dates.distinct().sorted()
@@ -340,10 +372,11 @@ internal fun longestDiaryStreak(dates: List<LocalDate>): Int {
 @Composable
 fun DiaryYearSummaryScreen(
     repository: DiaryRepository,
+    stopWordPreferences: DiaryStopWordPreferences,
     onBack: () -> Unit,
     showTopBar: Boolean = true,
 ) {
-    val factory = remember(repository) { DiaryYearSummaryViewModel.factory(repository) }
+    val factory = remember(repository, stopWordPreferences) { DiaryYearSummaryViewModel.factory(repository, stopWordPreferences) }
     val summaryViewModel: DiaryYearSummaryViewModel = viewModel(factory = factory)
     val state by summaryViewModel.uiState.collectAsStateWithLifecycle()
     val currentYear = remember { LocalDate.now().year }
@@ -355,6 +388,8 @@ fun DiaryYearSummaryScreen(
         onRetry = summaryViewModel::retry,
         onBack = onBack,
         showTopBar = showTopBar,
+        onAddStopWord = summaryViewModel::addStopWord,
+        onRemoveStopWord = summaryViewModel::removeStopWord,
     )
 }
 
@@ -366,7 +401,10 @@ private fun DiaryYearSummaryContent(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     showTopBar: Boolean,
+    onAddStopWord: (String) -> String? = { null },
+    onRemoveStopWord: (String) -> Unit = {},
 ) {
+    var showStopWordDialog by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         containerColor = SummaryBackground,
         topBar = { if (showTopBar) RefinedTopBar("日记年度总结", onBack) },
@@ -412,13 +450,21 @@ private fun DiaryYearSummaryContent(
                                 DiaryMonthlyChartCard(displayedState.months)
                                 DiaryMoodSummaryCard(displayedState.moods)
                                 DiaryMoodTrendCard(displayedState.monthlyMoods)
-                                DiaryWordSummaryCard(displayedState)
+                                DiaryWordSummaryCard(displayedState) { showStopWordDialog = true }
                             }
                         }
                     }
                 }
             }
         }
+    }
+    if (showStopWordDialog) {
+        DiaryStopWordDialog(
+            words = state.customStopWords,
+            onAdd = onAddStopWord,
+            onRemove = onRemoveStopWord,
+            onDismiss = { showStopWordDialog = false },
+        )
     }
 }
 
@@ -601,7 +647,7 @@ private fun DiaryMoodTrendCard(monthlyMoods: List<DiaryMonthlyMoodAggregate>) {
 }
 
 @Composable
-private fun DiaryWordSummaryCard(state: DiaryYearSummaryUiState) {
+private fun DiaryWordSummaryCard(state: DiaryYearSummaryUiState, onManageStopWords: () -> Unit = {}) {
     DiarySummarySection(title = "高频词与词云") {
         when {
             state.isAnalyzingWords -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -609,16 +655,24 @@ private fun DiaryWordSummaryCard(state: DiaryYearSummaryUiState) {
                 Spacer(Modifier.width(10.dp))
                 Text("正在后台分批分析文字…", color = SummaryMuted)
             }
-            state.analysisMessage != null -> Text(state.analysisMessage, color = SummaryMuted)
             else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                DiaryWordCloud(state.wordFrequencies.take(18))
-                Text(
-                    state.wordFrequencies.take(10).joinToString("  ·  ") { "${it.word} ${it.count}" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = SummaryBody,
-                )
-                Text("已过滤标点、数字、过短词语与常见停用词。", style = MaterialTheme.typography.bodySmall, color = SummaryMuted)
+                if (state.analysisMessage != null) {
+                    Text(state.analysisMessage, color = SummaryMuted)
+                } else {
+                    DiaryWordCloud(state.wordFrequencies.take(18))
+                }
+                if (state.wordFrequencies.isNotEmpty()) {
+                    Text(
+                        state.wordFrequencies.take(10).joinToString("  ·  ") { "${it.word} ${it.count}" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SummaryBody,
+                    )
+                }
             }
+        }
+        Text("默认停用词和手动添加的词不计入统计。", style = MaterialTheme.typography.bodySmall, color = SummaryMuted)
+        TextButton(onClick = onManageStopWords) {
+            Text("管理停用词（${state.customStopWords.size}）", color = SummaryBlue)
         }
     }
 }
@@ -846,7 +900,7 @@ private fun diarySummaryPreviewState(): DiaryYearSummaryUiState {
         monthlyMoods = (1..10).flatMap { month ->
             listOf(DiaryMonthlyMoodAggregate(month, 3, 6), DiaryMonthlyMoodAggregate(month, 4, month + 2), DiaryMonthlyMoodAggregate(month, 7, 12 - month))
         },
-        wordFrequencies = listOf("生活", "朋友", "工作", "开心", "今天", "晚饭", "散步", "周末", "音乐", "旅行", "咖啡", "学习")
+        wordFrequencies = listOf("生活", "朋友", "工作", "开心", "阅读", "晚饭", "散步", "周末", "音乐", "旅行", "咖啡", "学习")
             .mapIndexed { index, word -> DiaryWordFrequency(word, 48 - index * 3) },
         acceptedWordCount = 1146, isAnalyzingWords = false,
     )
@@ -917,5 +971,15 @@ private fun DiaryYearSummaryChartsPreview() {
 private fun DiaryYearSummaryEmptyPreview() {
     BlueTheme(darkTheme = false) {
         DiaryYearSummaryContent(DiaryYearSummaryUiState(year = 2026, isLoading = false), 2026, {}, {}, {}, showTopBar = true)
+    }
+}
+
+@Preview(name = "日记总结 · 高频词与停用词", widthDp = 390, heightDp = 600, showBackground = true)
+@Composable
+private fun DiaryWordSummaryPreview() {
+    BlueTheme(darkTheme = false) {
+        Box(Modifier.fillMaxSize().background(SummaryBackground).padding(16.dp)) {
+            DiaryWordSummaryCard(diarySummaryPreviewState().copy(customStopWords = setOf("运动", "天气")))
+        }
     }
 }
